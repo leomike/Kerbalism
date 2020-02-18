@@ -180,12 +180,12 @@ namespace KERBALISM
 			if (fail)
 			{
 				enforce_breakdown = true;
-				explode = Lib.RandomDouble() < 0.1;
+				explode = Lib.RandomDouble() < PreferencesReliability.Instance.criticalChance / 2;
 
 				next = Planetarium.GetUniversalTime() + Lib.RandomDouble() * 2.0;
 
-				var fuelSystemFailureProbability = 0.1;
-				if (launchpad) fuelSystemFailureProbability = 0.5;
+				var fuelSystemFailureProbability = PreferencesReliability.Instance.criticalChance / 2;
+				if (launchpad) fuelSystemFailureProbability = PreferencesReliability.Instance.criticalChance * 2;
 
 				if(Lib.RandomDouble() < fuelSystemFailureProbability)
 				{
@@ -419,7 +419,7 @@ namespace KERBALISM
 				{
 					next = now;
 					enforce_breakdown = true;
-					explode = Lib.RandomDouble() < 0.2;
+					explode = Lib.RandomDouble() < PreferencesReliability.Instance.criticalChance;
 #if DEBUG_RELIABILITY
 					Lib.Log("Reliability: " + part.partInfo.title + " fails because of material fatigue");
 #endif
