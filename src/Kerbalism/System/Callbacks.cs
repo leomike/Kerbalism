@@ -117,10 +117,21 @@ namespace KERBALISM
 			GameEvents.onGameSceneSwitchRequested.Add((_) => visible = false);
 			GameEvents.onGUIApplicationLauncherReady.Add(() => visible = true);
 
+			GameEvents.onLevelWasLoadedGUIReady.Add(this.updateTimewarp);
+
 			GameEvents.CommNet.OnNetworkInitialized.Add(() => Kerbalism.Fetch.StartCoroutine(NetworkInitialized()));
 
 			// add editor events
 			GameEvents.onEditorShipModified.Add((sc) => Planner.Planner.EditorShipModifiedEvent(sc));
+		}
+
+		void updateTimewarp(GameScenes scene)
+		{
+			// change default timewarp speeds
+			if (TimeWarp.fetch != null)
+			{
+				TimeWarp.fetch.warpRates = new float[8] { 1, 5, 10, 50, 100, 250, 500, 1000 };
+			}
 		}
 
 		private void OnPartCouple(GameEvents.FromToAction<Part, Part> data)
