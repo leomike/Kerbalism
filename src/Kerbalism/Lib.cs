@@ -1052,7 +1052,7 @@ namespace KERBALISM
 
 		public static string HumanReadableSampleSize(int slots)
 		{
-			if (slots <= 0) return Lib.BuildString(Local.Generic_NO, Local.Generic_SLOT);//"no "
+			if (slots <= 0) return Lib.BuildString(Local.Generic_NO, " ", Local.Generic_SLOT);//"no "
 
 			return Lib.BuildString(slots.ToString(), " ", slots > 1 ? Local.Generic_SLOTS : Local.Generic_SLOT);
 		}
