@@ -26,10 +26,11 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|AnyCPU'">
     <GenerateSerializationAssemblies>Auto</GenerateSerializationAssemblies>
     <ErrorReport>prompt</ErrorReport>
-    <CheckForOverflowUnderflow>false</CheckForOverflowUnderflow>
+    <DebugType>none</DebugType>
     <Prefer32Bit>false</Prefer32Bit>
     <RunPostBuildEvent>OnBuildSuccess</RunPostBuildEvent>
     <NoWarn>IDE0018</NoWarn>
+    <Optimize>true</Optimize>
   </PropertyGroup>
   <!-- ///////////////////////////////////////////////////// -->
   <!-- //////////// RELEASE CONFIGURATION SETUP //////////// -->
@@ -51,7 +52,7 @@
   <Import Condition="Exists('..\..\BuildSystem\ProjectsCommonProperties.xml')" Project="..\..\BuildSystem\ProjectsCommonProperties.xml" />
   <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
     <!-- Note : this is overriden by the build engine, but in order to have the correct constants in the IDE, it has to be there too -->
-    <DefineConstants>TRACE;DEBUG;$(DebugDefineConstants);KSP$(KSPDevVersion)</DefineConstants>
+    <DefineConstants>$(DebugDefineConstants);KSP$(KSPDevVersion)</DefineConstants>
     <DebugType>$(DebugTypeOverride)</DebugType>
     <DebugType Condition="'$(DebugTypeOverride)' == ''">none</DebugType>
   </PropertyGroup>
