@@ -897,7 +897,7 @@ namespace KERBALISM
 		///<summary> Pretty-print temperature </summary>
 		public static string HumanReadableTemp(double temp)
 		{
-			return BuildString(temp.ToString("F1"), " K");
+			return BuildString(temp.ToString("F1"), " K / ", (temp - 273.15).ToString("F1"), " °C");
 		}
 
 		///<summary> Pretty-print angle </summary>
@@ -956,7 +956,7 @@ namespace KERBALISM
 		///<summary> Pretty-print pressure (value is in kPa) </summary>
 		public static string HumanReadablePressure(double v)
 		{
-			return Lib.BuildString(v.ToString("F1"), " kPa");
+			return Lib.BuildString(v.ToString("F1"), " kPa / " + (v / 101.325).ToString("F1"), " atm");
 		}
 
 		///<summary> Pretty-print volume (value is in m^3) </summary>
