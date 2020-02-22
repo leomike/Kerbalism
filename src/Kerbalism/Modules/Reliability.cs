@@ -333,9 +333,7 @@ namespace KERBALISM
 				if (next <= 0)
 				{
 					last = now;
-					var guaranteed = mtbf / 2.0;
-					var r = 1 - Math.Pow(Lib.RandomDouble(), 3);
-					next = now + guaranteed + mtbf * (quality ? Settings.QualityScale : 1.0) * r;
+					next = now + 2 * mtbf * (quality ? Settings.QualityScale : 1.0) * (1 - Math.Pow(Lib.RandomDouble(), 2));
 #if DEBUG_RELIABILITY
 					Lib.Log("Reliability: MTBF failure in " + (now - next) + " for " + part.partInfo.title);
 #endif
@@ -455,9 +453,7 @@ namespace KERBALISM
 			// calculate epoch of failure if necessary
 			if (next <= 0)
 			{
-				var guaranteed = reliability.mtbf / 2.0;
-				var r = 1 - Math.Pow(Lib.RandomDouble(), 3);
-				next = now + guaranteed + reliability.mtbf * (quality ? Settings.QualityScale : 1.0) * r;
+				next = now + 2 * reliability.mtbf * (quality ? Settings.QualityScale : 1.0) * (1 - Math.Pow(Lib.RandomDouble(), 2));
 				Lib.Proto.Set(m, "last", now);
 				Lib.Proto.Set(m, "next", next);
 #if DEBUG_RELIABILITY
