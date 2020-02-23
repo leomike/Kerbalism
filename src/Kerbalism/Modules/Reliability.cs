@@ -38,6 +38,7 @@ namespace KERBALISM
 		[KSPField(isPersistant = true)] public double operation_duration = 0.0; // failure rate increases dramatically if this is exceeded
 		[KSPField(isPersistant = true)] public double fail_duration = 0.0;  // fail when operation_duration exceeds this
 		[KSPField(isPersistant = true)] public int ignitions = 0;           // accumulated ignitions
+		[KSPField(isPersistant = true)] public double lastIgnition = 0.0;   // time of the last ignition
 
 		// status ui
 #if KSP15_16
@@ -366,8 +367,13 @@ namespace KERBALISM
 				if (IsRunning())
 				{
 					running = true;
-					if (IgnitionCheck())
-						Break();
+
+					// don't count ignition that happen within 5 seconds of a shutdown as KSP makes quickly going to low throttle complex
+					if (now > lastIgnition + 5) {
+						lastIgnition = now;
+						if (IgnitionCheck())
+							Break();
+					}
 				}
 			}
 			else
@@ -375,6 +381,9 @@ namespace KERBALISM
 				running = IsRunning();
 			}
 
+			if(running)
+				lastIgnition = now;
+			
 			if (running && rated_operation_duration > 1 && lastRunningCheck > 0)
 			{
 				var duration = now - lastRunningCheck;
