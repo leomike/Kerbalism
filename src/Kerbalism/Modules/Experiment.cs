@@ -913,7 +913,7 @@ namespace KERBALISM
 					Local.Module_Experiment_Message2,//"I will not even know where to start"
 					Local.Module_Experiment_Message3//"I'm afraid I can't do that"
 				  ),
-				  reset_cs.Warning()
+				  prepare_cs.Warning()
 				);
 			}
 
