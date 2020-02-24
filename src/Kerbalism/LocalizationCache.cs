@@ -740,6 +740,7 @@ namespace KERBALISM
 		public static ParamString Module_Experiment_MultipleRunsMessage = new ParamString("Module_Experiment_MultipleRunsMessage"); // "Can't start <<1>> a second time on vessel <<2>>"
 		public static string Module_Experiment_Prepare = GetLoc("Module_Experiment_Prepare"); // "Prepare"
 		public static string Module_Experiment_Reset = GetLoc("Module_Experiment_Reset"); // "Reset"
+		public static string Module_Experiment_Refill = GetLoc("Module_Experiment_Refill"); // "Refill"
 		public static string Module_Experiment_issue_title = GetLoc("Module_Experiment_issue_title"); // "issue"
 		public static string Module_Experiment_issue1 = GetLoc("Module_Experiment_issue1"); // "invalid situation"
 		public static string Module_Experiment_issue2 = GetLoc("Module_Experiment_issue2"); // "shrouded"
