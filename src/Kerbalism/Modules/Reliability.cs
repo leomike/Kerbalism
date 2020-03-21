@@ -385,7 +385,7 @@ namespace KERBALISM
 			if (running && rated_operation_duration > 1 && lastRunningCheck > 0)
 			{
 				var duration = now - lastRunningCheck;
-				operation_duration += duration;
+				operation_duration += duration * Math.Sqrt(Math.Max(0.01, GetThrottle()));
 				vessel.KerbalismData().ResetReliabilityStatus();
 
 				if (fail_duration <= 0)
@@ -835,6 +835,21 @@ namespace KERBALISM
 			}
 
 			return false;
+		}
+
+		protected float GetThrottle()
+		{
+			if (type.StartsWith("ModuleEngines", StringComparison.Ordinal))
+			{
+				foreach (PartModule m in modules)
+				{
+					var e = m as ModuleEngines;
+					return e.currentThrottle;
+				}
+				return 0;
+			}
+
+			return 0;
 		}
 
 		// apply type-specific hacks to enable/disable the module
