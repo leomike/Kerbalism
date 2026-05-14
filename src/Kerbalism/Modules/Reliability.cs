@@ -585,6 +585,40 @@ namespace KERBALISM
 
 			if (broken)
 			{
+				if (PreferencesReliability.Instance.requireRepairKits) // REQUIRE REPAIR KIT - Settings Option
+				{
+					int repairKits = 0;
+					KerbalEVA kerbalEVA = v.evaController;
+					if (kerbalEVA.ModuleInventoryPartReference != null && v.isEVA)
+					{
+						foreach (StoredPart storedPart in kerbalEVA.ModuleInventoryPartReference.storedParts.Values)
+						{
+							// Note : the "evaRepairKit" string is hardcoded in the KSP source
+							if (storedPart.partName == "evaRepairKit")
+							{
+								repairKits++;
+							}
+						}
+					}
+					if (repairKits <= 0)
+					{
+						Message.Post
+						(
+						  Local.Reliability_MessagePost30.Format("<b>" + title + "</b>"),//Lib.BuildString("<<1>> needs a repair kit")
+						  Lib.TextVariant
+						  (
+							Local.Reliability_MessagePost31,//"Did I forget something."
+							Local.Reliability_MessagePost32//"Oh crap..."
+						  )
+						);
+						return;
+					}
+					else
+					{
+						kerbalEVA.ModuleInventoryPartReference.RemoveNPartsFromInventory("evaRepairKit", 1, true);
+					}
+				}
+				
 				// flag as not broken
 				broken = false;
 
