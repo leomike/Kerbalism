@@ -59,17 +59,18 @@ namespace KERBALISM
 		KsmGuiHeader rndArchiveHeader;
 		ExperimentSubjectList rndArchiveView;
 
-		private static List<long> activePopups = new List<long>();
+		private static Dictionary<long, KsmGuiWindow> activePopups = new Dictionary<long, KsmGuiWindow>();
 		private long popupId;
 
 		public ExperimentPopup(Vessel v, Experiment moduleOrPrefab, uint partId, string partName, ProtoPartModuleSnapshot protoModule = null)
 		{
 			popupId = partId + moduleOrPrefab.experiment_id.GetHashCode();
 
-			if (activePopups.Contains(popupId))
+			if (activePopups.TryGetValue(popupId, out KsmGuiWindow existingWindow))
+			{
+				existingWindow.Close();
 				return;
-
-			activePopups.Add(popupId);
+			}
 
 			if (protoModule == null)
 			{
@@ -92,6 +93,7 @@ namespace KERBALISM
 
 			// create the window
 			window = new KsmGuiWindow(KsmGuiWindow.LayoutGroupType.Vertical, true, KsmGuiStyle.defaultWindowOpacity, true, 0, TextAnchor.UpperLeft, 5f);
+			activePopups.Add(popupId, window);
 			window.OnClose = () => activePopups.Remove(popupId);
 			window.SetLayoutElement(false, false, -1, -1, -1, 150);
 			window.SetUpdateAction(GetData);
