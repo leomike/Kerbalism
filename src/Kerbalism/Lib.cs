@@ -310,9 +310,6 @@ namespace KERBALISM
 		{
 			get
 			{
-				if (!GameSettings.KERBIN_TIME)
-					return 24.0;
-
 				if (hoursInDay == -1.0)
 				{
 					if (FlightGlobals.ready || IsEditor())
@@ -322,9 +319,8 @@ namespace KERBALISM
 					}
 					else
 					{
-						return 6.0;
+						return GameSettings.KERBIN_TIME ? 6.0 : 24.0;
 					}
-
 				}
 				return hoursInDay;
 			}
