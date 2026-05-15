@@ -1458,7 +1458,12 @@ namespace KERBALISM
 		/// <summary> Is this body a sun ? </summary>
 		public static bool IsSun(CelestialBody body)
 		{
-			return Sim.suns.Exists(p => p.bodyIndex == body.flightGlobalsIndex);
+			int idx = body.flightGlobalsIndex;
+			foreach (Sim.SunData s in Sim.suns)
+			{
+				if (s.bodyIndex == idx) return true;
+			}
+			return false;
 		}
 
 		/// <summary> return the first found parent sun for a given body </summary>
