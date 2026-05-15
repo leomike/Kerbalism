@@ -18,7 +18,7 @@ namespace KERBALISM
 		public bool is_eva_dead;
 
 		/// <summary>False in the following cases : asteroid, debris, flag, deployed ground part, dead eva, rescue</summary>
-		public bool IsSimulated { get; private set; }
+		public bool IsSimulated { get; set; }
 
 		/// <summary>False if the vessel partmodules OnStart()/OnStartFinished() haven't been called yet. Always true on unloaded vessels.</summary>
 		public bool PartsStarted => Vessel.loaded ? Vessel.rootPart.started : true;
@@ -453,7 +453,7 @@ namespace KERBALISM
 			}
 		}
 
-		private bool CheckIfSimulated()
+		public bool CheckIfSimulated()
 		{
 			// determine if this is a valid vessel
 			is_vessel = Lib.IsVessel(Vessel);

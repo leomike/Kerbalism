@@ -396,7 +396,10 @@ namespace KERBALISM
 					Lib.Proto.Set(m, "situationId", notRunningSituationId);
 				}
 				catch
-				{ }
+				{
+					vd.IsSimulated = vd.CheckIfSimulated();
+					return;
+				}
 				UnityEngine.Profiling.Profiler.EndSample();
 				return;
 			}
@@ -412,18 +415,26 @@ namespace KERBALISM
 			SubjectData subjectData;
 
 			UnityEngine.Profiling.Profiler.BeginSample("Kerbalism.Experiment.BackgroundUpdate.RunningUpdate");
-			double prodFactor = RunningUpdate(
-				v, vd, GetSituation(vd), this, privateHdId, didPrepare, shrouded, // "this" is the prefab
-				ec,
-				resources,
-				ResourceDefs, // from prefab
-				expInfo,
-				expState,
-				elapsed_s,
-				ref situationId,
-				ref remainingSampleMass,
-				out subjectData,
-				out issue);
+			try
+			{
+				double prodFactor = RunningUpdate(
+					v, vd, GetSituation(vd), this, privateHdId, didPrepare, shrouded, // "this" is the prefab
+					ec,
+					resources,
+					ResourceDefs, // from prefab
+					expInfo,
+					expState,
+					elapsed_s,
+					ref situationId,
+					ref remainingSampleMass,
+					out subjectData,
+					out issue);
+			}
+			catch
+			{
+				vd.IsSimulated = vd.CheckIfSimulated();
+				return;
+			}
 			UnityEngine.Profiling.Profiler.EndSample();
 
 			var newStatus = GetStatus(expState, subjectData, issue);
@@ -649,7 +660,14 @@ namespace KERBALISM
 
 		public virtual Situation GetSituation(VesselData vd)
 		{
-			return vd.VesselSituations.GetExperimentSituation(ExpInfo);
+			try
+			{
+				return vd.VesselSituations.GetExperimentSituation(ExpInfo);
+			}
+			catch
+			{
+				return null;
+			}
 		}
 
 		private static Drive GetDrive(VesselData vesselData, uint hdId, double chunkSize, SubjectData subjectData)
