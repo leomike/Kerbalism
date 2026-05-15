@@ -338,6 +338,7 @@ namespace KERBALISM
 				if (subject == null)
 				{
 					vd.IsSimulated = vd.CheckIfSimulated();
+					return;
 				}
 				UnityEngine.Profiling.Profiler.EndSample();
 				return;
@@ -350,6 +351,7 @@ namespace KERBALISM
 				if (subject == null)
 				{
 					vd.IsSimulated = vd.CheckIfSimulated();
+					return;
 				}
 				UnityEngine.Profiling.Profiler.EndSample();
 				Toggle();
@@ -468,10 +470,6 @@ namespace KERBALISM
 			mainIssue = string.Empty;
 
 			subjectData = ScienceDB.GetSubjectData(expInfo, vs);
-			if (subjectData == null)
-			{
-				vd.IsSimulated = vd.CheckIfSimulated();
-			}
 
 			bool subjectHasChanged;
 			if (subjectData != null)
@@ -481,9 +479,17 @@ namespace KERBALISM
 			}
 			else
 			{
-				lastSituationId = vd.VesselSituations.FirstSituation.Id;
-				mainIssue = Local.Module_Experiment_issue1;//"invalid situation"
-				return 0.0;
+				try
+				{
+					vd.IsSimulated = vd.CheckIfSimulated();
+					lastSituationId = vd.VesselSituations.FirstSituation.Id;
+					mainIssue = Local.Module_Experiment_issue1;//"invalid situation"
+					return 0.0;
+				}
+				catch
+				{
+					return 0.0;
+				}
 			}
 
 			double scienceRemaining = subjectData.ScienceRemainingToCollect;

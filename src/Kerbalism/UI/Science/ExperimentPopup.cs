@@ -168,6 +168,7 @@ namespace KERBALISM
 				if (subjectData == null)
 				{
 					vd.IsSimulated = vd.CheckIfSimulated();
+					return;
 				}
 				issue = Lib.Proto.GetString(protoModule, "issue");
 				prodFactor = Lib.Proto.GetDouble(protoModule, "prodFactor");
