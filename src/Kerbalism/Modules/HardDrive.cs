@@ -38,6 +38,10 @@ namespace KERBALISM
 		private Drive drive;
 		private double totalSampleMass;
 
+		private double lastAvailableDataCapacity = double.NegativeInfinity;
+		private int lastAvailableSlots = int.MinValue;
+		private double lastTotalSampleMass = double.NegativeInfinity;
+
 		List<KeyValuePair<string, double>> dataCapacities = null;
 		List<KeyValuePair<string, int>> sampleCapacities = null;
 
@@ -243,18 +247,25 @@ namespace KERBALISM
 				availableSlots = Lib.SampleSizeToSlots(drive.SampleCapacityAvailable());
 			}
 
-			Capacity = string.Empty;
-			if(availableDataCapacity > double.Epsilon)
-				Capacity = Lib.HumanReadableDataSize(availableDataCapacity);
-			if(availableSlots > 0)
+			if (availableDataCapacity != lastAvailableDataCapacity
+				|| availableSlots != lastAvailableSlots
+				|| totalSampleMass != lastTotalSampleMass)
 			{
-				if (Capacity.Length > 0) Capacity += " ";
-				Capacity += Lib.HumanReadableSampleSize(availableSlots);
-			}
+				lastAvailableDataCapacity = availableDataCapacity;
+				lastAvailableSlots = availableSlots;
+				lastTotalSampleMass = totalSampleMass;
 
-			if(Lib.IsFlight() && totalSampleMass > double.Epsilon)
-			{
-				Capacity += " " + Lib.HumanReadableMass(totalSampleMass);
+				Capacity = string.Empty;
+				if (availableDataCapacity > double.Epsilon)
+					Capacity = Lib.HumanReadableDataSize(availableDataCapacity);
+				if (availableSlots > 0)
+				{
+					if (Capacity.Length > 0) Capacity += " ";
+					Capacity += Lib.HumanReadableSampleSize(availableSlots);
+				}
+
+				if (Lib.IsFlight() && totalSampleMass > double.Epsilon)
+					Capacity = Lib.BuildString(Capacity, " ", Lib.HumanReadableMass(totalSampleMass));
 			}
 		}
 
