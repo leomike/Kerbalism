@@ -913,8 +913,16 @@ namespace KERBALISM
 			crewCapacity = Lib.CrewCapacity(Vessel);
 
 			// malfunction stuff
-			malfunction = Reliability.HasMalfunction(Vessel);
-			critical = Reliability.HasCriticalFailure(Vessel);
+			if (Features.Reliability)
+			{
+				malfunction = Reliability.HasMalfunction(Vessel);
+				critical = Reliability.HasCriticalFailure(Vessel);
+			}
+			else
+			{
+				malfunction = false;
+				critical = false;
+			}
 
 			// communications info
 			CommHandler.UpdateConnection(connection);
