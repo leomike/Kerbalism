@@ -335,6 +335,10 @@ namespace KERBALISM
 			{
 				situation = GetSituation(vd);
 				subject = ScienceDB.GetSubjectData(ExpInfo, situation, out situationId);
+				if (subject == null)
+				{
+					vd.IsSimulated = vd.CheckIfSimulated();
+				}
 				UnityEngine.Profiling.Profiler.EndSample();
 				return;
 			}
@@ -343,6 +347,10 @@ namespace KERBALISM
 			{
 				situation = GetSituation(vd);
 				subject = ScienceDB.GetSubjectData(ExpInfo, situation, out situationId);
+				if (subject == null)
+				{
+					vd.IsSimulated = vd.CheckIfSimulated();
+				}
 				UnityEngine.Profiling.Profiler.EndSample();
 				Toggle();
 				return;
@@ -460,6 +468,10 @@ namespace KERBALISM
 			mainIssue = string.Empty;
 
 			subjectData = ScienceDB.GetSubjectData(expInfo, vs);
+			if (subjectData == null)
+			{
+				vd.IsSimulated = vd.CheckIfSimulated();
+			}
 
 			bool subjectHasChanged;
 			if (subjectData != null)

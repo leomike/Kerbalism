@@ -569,16 +569,23 @@ namespace KERBALISM
 		/// <summary> return the subject information for the given experiment and situation, or null if the situation isn't available. </summary>
 		public static SubjectData GetSubjectData(ExperimentInfo expInfo, Situation situation, out int situationId)
 		{
-			if (!situation.ScienceSituation.IsBiomesRelevantForExperiment(expInfo))
-				situationId = situation.GetBiomeAgnosticId();
-			else
-				situationId = situation.Id;
+			try
+			{
+				if (!situation.ScienceSituation.IsBiomesRelevantForExperiment(expInfo))
+					situationId = situation.GetBiomeAgnosticId();
+				else
+					situationId = situation.Id;
 
-			SubjectData subjectData;
-			if (!subjectByExpThenSituationId[expInfo].TryGetValue(situationId, out subjectData))
+				SubjectData subjectData;
+				if (!subjectByExpThenSituationId[expInfo].TryGetValue(situationId, out subjectData))
+					return null;
+
+				return subjectData;
+			}
+			catch
+			{
 				return null;
-
-			return subjectData;
+			}
 		}
 
 		/// <summary> return the subject information for the given experiment and situation id, or null if the situation isn't available. </summary>
@@ -601,36 +608,43 @@ namespace KERBALISM
 		/// <summary> return the subject information for the given experiment and situation, or null if the situation isn't available. </summary>
 		public static SubjectData GetSubjectData(string integerSubjectId)
 		{
-			string[] expAndSit = integerSubjectId.Split('@');
-
-			if (expAndSit.Length != 2)
+			try
 			{
-				Lib.Log("Could not get the SubjectData from subject '" + integerSubjectId + "' : bad format");
+				string[] expAndSit = integerSubjectId.Split('@');
+
+				if (expAndSit.Length != 2)
+				{
+					Lib.Log("Could not get the SubjectData from subject '" + integerSubjectId + "' : bad format");
+					return null;
+				}
+
+				ExperimentInfo expInfo = GetExperimentInfo(expAndSit[0]);
+				if (expInfo == null)
+				{
+					Lib.Log("Could not get the SubjectData from subject '" + integerSubjectId + "' : the experiment id '" + expAndSit[0] + "' doesn't exists");
+					return null;
+				}
+
+				int situationId;
+				if (!int.TryParse(expAndSit[1], out situationId))
+				{
+					Lib.Log("Could not get the SubjectData from subject '" + integerSubjectId + "' : the situation id '" + expAndSit[1] + "' isn't a valid integer");
+					return null;
+				}
+
+				SubjectData subjectData;
+				if (!subjectByExpThenSituationId[expInfo].TryGetValue(situationId, out subjectData))
+				{
+					Lib.Log("Could not get the SubjectData from subject '" + integerSubjectId + "' : the situation id '" + expAndSit[1] + "' isn't valid");
+					return null;
+				}
+
+				return subjectData;
+			}
+			catch
+			{
 				return null;
 			}
-
-			ExperimentInfo expInfo = GetExperimentInfo(expAndSit[0]);
-			if (expInfo == null)
-			{
-				Lib.Log("Could not get the SubjectData from subject '" + integerSubjectId + "' : the experiment id '" + expAndSit[0] + "' doesn't exists");
-				return null;
-			}
-
-			int situationId;
-			if (!int.TryParse(expAndSit[1], out situationId))
-			{
-				Lib.Log("Could not get the SubjectData from subject '" + integerSubjectId + "' : the situation id '" + expAndSit[1] + "' isn't a valid integer");
-				return null;
-			}
-
-			SubjectData subjectData;
-			if (!subjectByExpThenSituationId[expInfo].TryGetValue(situationId, out subjectData))
-			{
-				Lib.Log("Could not get the SubjectData from subject '" + integerSubjectId + "' : the situation id '" + expAndSit[1] + "' isn't valid");
-				return null;
-			}
-
-			return subjectData;
 
 		}
 

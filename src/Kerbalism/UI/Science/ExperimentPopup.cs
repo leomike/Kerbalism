@@ -1,15 +1,16 @@
+using KERBALISM.KsmGui;
+using KSP.Localization;
 using KSP.UI;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Xml.Linq;
 using UnityEngine;
 using UnityEngine.Events;
-using static KERBALISM.ExperimentRequirements;
 using static KERBALISM.Experiment;
-using KERBALISM.KsmGui;
+using static KERBALISM.ExperimentRequirements;
 using static KERBALISM.ScienceDB;
-using KSP.Localization;
 
 namespace KERBALISM
 {
@@ -164,6 +165,10 @@ namespace KERBALISM
 				int situationId = Lib.Proto.GetInt(protoModule, "situationId", 0);
 				expInfo = ScienceDB.GetExperimentInfo(moduleOrPrefab.experiment_id);
 				subjectData = ScienceDB.GetSubjectData(expInfo, situationId);
+				if (subjectData == null)
+				{
+					vd.IsSimulated = vd.CheckIfSimulated();
+				}
 				issue = Lib.Proto.GetString(protoModule, "issue");
 				prodFactor = Lib.Proto.GetDouble(protoModule, "prodFactor");
 				if (isSample) remainingSampleMass = Lib.Proto.GetDouble(protoModule, "remainingSampleMass", 0.0);
