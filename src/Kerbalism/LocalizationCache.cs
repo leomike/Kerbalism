@@ -870,7 +870,7 @@ namespace KERBALISM
 		public static string HardDrive_Capacity = GetLoc("HardDrive_Capacity"); // "Capacity"
 		public static string HardDrive_Data = GetLoc("HardDrive_Data"); // "Data"
 		public static string HardDrive_Dataempty = GetLoc("HardDrive_Dataempty"); // "empty"
-		public static string HardDrive_WARNING_title = GetLoc("HardDrive_WARNING_title"); // "WARNING: not evering copied"
+		public static string HardDrive_WARNING_title = GetLoc("HardDrive_WARNING_title"); // "WARNING: not everything copied"
 		public static string HardDrive_WARNING = GetLoc("HardDrive_WARNING"); // "Storage is at capacity"
 		public static string HardDrive_info1 = GetLoc("HardDrive_info1"); // "File capacity"
 		public static string HardDrive_info2 = GetLoc("HardDrive_info2"); // "Sample capacity"

@@ -222,7 +222,7 @@ namespace KERBALISM
 		{
 			if (drive == null)
 				return;
-			
+
 			double mass = 0;
 			foreach (var sample in drive.samples.Values) mass += sample.mass;
 			totalSampleMass = mass;
@@ -292,7 +292,7 @@ namespace KERBALISM
 			{
 				Message.Post
 				(
-					Lib.Color(Lib.BuildString(Local.HardDrive_WARNING_title), Lib.Kolor.Red, true),//"WARNING: not evering copied"
+					Lib.Color(Lib.BuildString(Local.HardDrive_WARNING_title), Lib.Kolor.Red, true),//"WARNING: not everything copied"
 					Lib.BuildString(Local.HardDrive_WARNING)//"Storage is at capacity"
 				);
 			}
@@ -310,7 +310,7 @@ namespace KERBALISM
 			{
 				Message.Post
 				(
-					Lib.Color(Lib.BuildString(Local.HardDrive_WARNING_title), Lib.Kolor.Red, true),//"WARNING: not evering copied"
+					Lib.Color(Lib.BuildString(Local.HardDrive_WARNING_title), Lib.Kolor.Red, true),//"WARNING: not everything copied"
 					Lib.BuildString(Local.HardDrive_WARNING)//"Storage is at capacity"
 				);
 			}
@@ -455,7 +455,7 @@ namespace KERBALISM
 		{
 			double result = 0;
 
-			if(effectiveSampleCapacity > sampleCapacity && sampleCapacity > 0)
+			if (effectiveSampleCapacity > sampleCapacity && sampleCapacity > 0)
 			{
 				var sampleMultiplier = (effectiveSampleCapacity / sampleCapacity) - 1;
 				result += sampleMultiplier * sampleCapacityCost;
