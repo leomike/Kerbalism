@@ -120,7 +120,8 @@ namespace KERBALISM
 									return;
 
 								habitatWrappers.Add(wrapper);
-								break;
+								//Why were we ever breaking here?
+								// break;
 							}
 						}
 					}
