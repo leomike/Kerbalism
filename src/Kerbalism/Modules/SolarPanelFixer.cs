@@ -425,7 +425,15 @@ namespace KERBALISM
 				SolarPanel.SetTrackedBody(vd.EnvMainSun.SunData.body);
 			}
 
-			VesselData.SunInfo trackedSunInfo = vd.EnvSunsInfo.Find(p => p.SunData.bodyIndex == trackedSunIndex);
+			VesselData.SunInfo trackedSunInfo = null;
+			for (int i = 0; i < vd.EnvSunsInfo.Count; i++)
+			{
+				if (vd.EnvSunsInfo[i].SunData.bodyIndex == trackedSunIndex)
+				{
+					trackedSunInfo = vd.EnvSunsInfo[i];
+					break;
+				}
+			}
 
 			if (trackedSunInfo.SunlightFactor == 0.0)
 				exposureState = ExposureState.InShadow;
@@ -541,7 +549,7 @@ namespace KERBALISM
 
 			// get wear factor (time based output degradation)
 			wearFactor = 1.0;
-			if (timeEfficCurve?.Curve.keys.Length > 1)
+			if (timeEfficCurve?.Curve.length > 1)
 				wearFactor = Lib.Clamp(timeEfficCurve.Evaluate((float)((Planetarium.GetUniversalTime() - launchUT) / 3600.0)), 0.0, 1.0);
 
 			// get final output rate in EC/s
