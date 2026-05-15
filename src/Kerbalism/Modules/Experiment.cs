@@ -390,8 +390,13 @@ namespace KERBALISM
 
 			if (!IsRunning(expState))
 			{
-				int notRunningSituationId = Situation.GetBiomeAgnosticIdForExperiment(GetSituation(vd).Id, expInfo);
-				Lib.Proto.Set(m, "situationId", notRunningSituationId);
+				try
+				{
+					int notRunningSituationId = Situation.GetBiomeAgnosticIdForExperiment(GetSituation(vd).Id, expInfo);
+					Lib.Proto.Set(m, "situationId", notRunningSituationId);
+				}
+				catch
+				{ }
 				UnityEngine.Profiling.Profiler.EndSample();
 				return;
 			}
