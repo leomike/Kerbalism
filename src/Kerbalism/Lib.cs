@@ -1511,7 +1511,21 @@ namespace KERBALISM
 		/// <summary>Get a body display name, without the gender tag</summary>
 		public static string BodyDisplayName(CelestialBody body)
 		{
-			return body.displayName.LocalizeRemoveGender();
+			try
+			{
+				return body.displayName.LocalizeRemoveGender();
+			}
+			catch
+			{
+				if (HighLogic.LoadedSceneIsFlight)
+				{
+					return FlightGlobals.currentMainBody.displayName.LocalizeRemoveGender();
+				}
+				else
+				{
+					return null; //indicates we are not ready, happens when things query this too early during rover EVAs and such. There is probably a better fix somehow.
+				}
+			}
 		}
 		#endregion
 

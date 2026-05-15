@@ -372,73 +372,75 @@ namespace KERBALISM
 
 		public void FixedUpdate()
 		{
-			UnityEngine.Profiling.Profiler.BeginSample("Kerbalism.SolarPanelFixer.FixedUpdate");
-			// sanity check
-			if (SolarPanel == null)
+			try
 			{
-				UnityEngine.Profiling.Profiler.EndSample();
-				return;
-			}
-
-			// Keep resetting launchUT in prelaunch state. It is possible for that value to come from craft file which could result in panels being degraded from the start.
-			if (Lib.IsFlight() && vessel != null && vessel.situation == Vessel.Situations.PRELAUNCH)
-				launchUT = Planetarium.GetUniversalTime();
-
-			// can't produce anything if not deployed, broken, etc
-			PanelState newState = SolarPanel.GetState();
-			if (state != newState)
-			{
-				state = newState;
-				if (Lib.IsEditor() && (newState == PanelState.Extended || newState == PanelState.ExtendedFixed || newState == PanelState.Retracted))
-					Lib.RefreshPlanner();
-			}
-
-			if (!(state == PanelState.Extended || state == PanelState.ExtendedFixed || state == PanelState.Static))
-			{
-				exposureState = ExposureState.Disabled;
-				currentOutput = 0.0;
-				UnityEngine.Profiling.Profiler.EndSample();
-				return;
-			}
-
-			// do nothing else in editor
-			if (Lib.IsEditor())
-			{
-				UnityEngine.Profiling.Profiler.EndSample();
-				return;
-			}
-
-			// get vessel data from cache
-			VesselData vd = vessel.KerbalismData();
-
-			// do nothing if vessel is invalid
-			if (!vd.IsSimulated)
-			{
-				UnityEngine.Profiling.Profiler.EndSample();
-				return;
-			}
-
-			// Update tracked sun in auto mode
-			if (!manualTracking && trackedSunIndex != vd.EnvMainSun.SunData.bodyIndex)
-			{
-				trackedSunIndex = vd.EnvMainSun.SunData.bodyIndex;
-				SolarPanel.SetTrackedBody(vd.EnvMainSun.SunData.body);
-			}
-
-			VesselData.SunInfo trackedSunInfo = null;
-			for (int i = 0; i < vd.EnvSunsInfo.Count; i++)
-			{
-				if (vd.EnvSunsInfo[i].SunData.bodyIndex == trackedSunIndex)
+				UnityEngine.Profiling.Profiler.BeginSample("Kerbalism.SolarPanelFixer.FixedUpdate");
+				// sanity check
+				if (SolarPanel == null)
 				{
-					trackedSunInfo = vd.EnvSunsInfo[i];
-					break;
+					UnityEngine.Profiling.Profiler.EndSample();
+					return;
 				}
-			}
 
-			if (trackedSunInfo.SunlightFactor == 0.0)
-				exposureState = ExposureState.InShadow;
-			else
-				exposureState = ExposureState.Exposed;
+				// Keep resetting launchUT in prelaunch state. It is possible for that value to come from craft file which could result in panels being degraded from the start.
+				if (Lib.IsFlight() && vessel != null && vessel.situation == Vessel.Situations.PRELAUNCH)
+					launchUT = Planetarium.GetUniversalTime();
+
+				// can't produce anything if not deployed, broken, etc
+				PanelState newState = SolarPanel.GetState();
+				if (state != newState)
+				{
+					state = newState;
+					if (Lib.IsEditor() && (newState == PanelState.Extended || newState == PanelState.ExtendedFixed || newState == PanelState.Retracted))
+						Lib.RefreshPlanner();
+				}
+
+				if (!(state == PanelState.Extended || state == PanelState.ExtendedFixed || state == PanelState.Static))
+				{
+					exposureState = ExposureState.Disabled;
+					currentOutput = 0.0;
+					UnityEngine.Profiling.Profiler.EndSample();
+					return;
+				}
+
+				// do nothing else in editor
+				if (Lib.IsEditor())
+				{
+					UnityEngine.Profiling.Profiler.EndSample();
+					return;
+				}
+
+				// get vessel data from cache
+				VesselData vd = vessel.KerbalismData();
+
+				// do nothing if vessel is invalid
+				if (!vd.IsSimulated)
+				{
+					UnityEngine.Profiling.Profiler.EndSample();
+					return;
+				}
+
+				// Update tracked sun in auto mode
+				if (!manualTracking && trackedSunIndex != vd.EnvMainSun.SunData.bodyIndex)
+				{
+					trackedSunIndex = vd.EnvMainSun.SunData.bodyIndex;
+					SolarPanel.SetTrackedBody(vd.EnvMainSun.SunData.body);
+				}
+
+				VesselData.SunInfo trackedSunInfo = null;
+				for (int i = 0; i < vd.EnvSunsInfo.Count; i++)
+				{
+					if (vd.EnvSunsInfo[i].SunData.bodyIndex == trackedSunIndex)
+					{
+						trackedSunInfo = vd.EnvSunsInfo[i];
+						break;
+					}
+				}
+
+				if (trackedSunInfo.SunlightFactor == 0.0)
+					exposureState = ExposureState.InShadow;
+				else
+					exposureState = ExposureState.Exposed;
 
 #if DEBUG_SOLAR
 			Vector3d sunDirDebug = trackedSunInfo.Direction;
@@ -458,117 +460,122 @@ namespace KERBALISM
 			}
 #endif
 
-			if (vd.EnvIsAnalytic)
-			{
-				// if we are switching to analytic mode and the vessel is landed, get an average exposure over a day
-				// TODO : maybe check the rotation speed of the body, this might be inaccurate for tidally-locked bodies (test on the mun ?)
-				if (!analyticSunlight && Lib.Landed(vessel)) persistentFactor = GetAnalyticalCosineFactorLanded(vd);
-				analyticSunlight = true;
-			}
-			else
-			{
-				analyticSunlight = false;
-			}
-
-			// cosine / occlusion factor isn't updated when in analyticalSunlight / unloaded states :
-			// - evaluting sun_dir / vessel orientation gives random results resulting in inaccurate behavior / random EC rates
-			// - using the last calculated factor is a satisfactory simulation of a sun relative vessel attitude keeping behavior
-			//   without all the complexity of actually doing it
-			if (analyticSunlight)
-			{
-				exposureFactor = persistentFactor;
-			}
-			else
-			{
-				// reset factors
-				persistentFactor = 0.0;
-				exposureFactor = 0.0;
-
-				// iterate over all stars, compute the exposure factor
-				foreach (VesselData.SunInfo sunInfo in vd.EnvSunsInfo)
+				if (vd.EnvIsAnalytic)
 				{
-					// ignore insignifiant flux from distant stars
-					if (sunInfo != trackedSunInfo && sunInfo.SolarFlux < 1e-6)
-						continue;
+					// if we are switching to analytic mode and the vessel is landed, get an average exposure over a day
+					// TODO : maybe check the rotation speed of the body, this might be inaccurate for tidally-locked bodies (test on the mun ?)
+					if (!analyticSunlight && Lib.Landed(vessel)) persistentFactor = GetAnalyticalCosineFactorLanded(vd);
+					analyticSunlight = true;
+				}
+				else
+				{
+					analyticSunlight = false;
+				}
 
-					double sunCosineFactor = 0.0;
-					double sunOccludedFactor = 0.0;
-					string occludingPart = null;
+				// cosine / occlusion factor isn't updated when in analyticalSunlight / unloaded states :
+				// - evaluting sun_dir / vessel orientation gives random results resulting in inaccurate behavior / random EC rates
+				// - using the last calculated factor is a satisfactory simulation of a sun relative vessel attitude keeping behavior
+				//   without all the complexity of actually doing it
+				if (analyticSunlight)
+				{
+					exposureFactor = persistentFactor;
+				}
+				else
+				{
+					// reset factors
+					persistentFactor = 0.0;
+					exposureFactor = 0.0;
 
-					// Get the cosine factor (alignement between the sun and the panel surface)
-					sunCosineFactor = SolarPanel.GetCosineFactor(sunInfo.Direction);
-
-					if (sunCosineFactor == 0.0)
+					// iterate over all stars, compute the exposure factor
+					foreach (VesselData.SunInfo sunInfo in vd.EnvSunsInfo)
 					{
-						// If this is the tracked sun and the panel is not oriented toward the sun, update the gui info string.
-						if (sunInfo == trackedSunInfo)
-							exposureState = ExposureState.BadOrientation;
-					}
-					else
-					{
-						// The panel is oriented toward the sun, do a physic raycast to check occlusion from parts, terrain, buildings...
-						sunOccludedFactor = SolarPanel.GetOccludedFactor(sunInfo.Direction, out occludingPart, sunInfo != trackedSunInfo);
+						// ignore insignifiant flux from distant stars
+						if (sunInfo != trackedSunInfo && sunInfo.SolarFlux < 1e-6)
+							continue;
 
-						// If this is the tracked sun and the panel is occluded, update the gui info string. 
-						if (sunInfo == trackedSunInfo && sunOccludedFactor == 0.0)
+						double sunCosineFactor = 0.0;
+						double sunOccludedFactor = 0.0;
+						string occludingPart = null;
+
+						// Get the cosine factor (alignement between the sun and the panel surface)
+						sunCosineFactor = SolarPanel.GetCosineFactor(sunInfo.Direction);
+
+						if (sunCosineFactor == 0.0)
 						{
-							if (occludingPart != null)
+							// If this is the tracked sun and the panel is not oriented toward the sun, update the gui info string.
+							if (sunInfo == trackedSunInfo)
+								exposureState = ExposureState.BadOrientation;
+						}
+						else
+						{
+							// The panel is oriented toward the sun, do a physic raycast to check occlusion from parts, terrain, buildings...
+							sunOccludedFactor = SolarPanel.GetOccludedFactor(sunInfo.Direction, out occludingPart, sunInfo != trackedSunInfo);
+
+							// If this is the tracked sun and the panel is occluded, update the gui info string. 
+							if (sunInfo == trackedSunInfo && sunOccludedFactor == 0.0)
 							{
-								exposureState = ExposureState.OccludedPart;
-								mainOccludingPart = Lib.EllipsisMiddle(occludingPart, 15);
-							}
-							else
-							{
-								exposureState = ExposureState.OccludedTerrain;
+								if (occludingPart != null)
+								{
+									exposureState = ExposureState.OccludedPart;
+									mainOccludingPart = Lib.EllipsisMiddle(occludingPart, 15);
+								}
+								else
+								{
+									exposureState = ExposureState.OccludedTerrain;
+								}
 							}
 						}
+
+						// Compute final aggregate exposure factor
+						double sunExposureFactor = sunCosineFactor * sunOccludedFactor * sunInfo.FluxProportion;
+
+						// Add the final factor to the saved exposure factor to be used in analytical / unloaded states.
+						// If occlusion is from the scene, not a part (terrain, building...) don't save the occlusion factor,
+						// as occlusion from the terrain and static objects is too variable over time.
+						if (occludingPart != null)
+							persistentFactor += sunExposureFactor;
+						else
+							persistentFactor += sunCosineFactor * sunInfo.FluxProportion;
+
+						// Only apply the exposure factor if not in shadow (body occlusion check)
+						if (sunInfo.SunlightFactor == 1.0) exposureFactor += sunExposureFactor;
+						else if (sunInfo == trackedSunInfo) exposureState = ExposureState.InShadow;
 					}
-
-					// Compute final aggregate exposure factor
-					double sunExposureFactor = sunCosineFactor * sunOccludedFactor * sunInfo.FluxProportion;
-
-					// Add the final factor to the saved exposure factor to be used in analytical / unloaded states.
-					// If occlusion is from the scene, not a part (terrain, building...) don't save the occlusion factor,
-					// as occlusion from the terrain and static objects is too variable over time.
-					if (occludingPart != null)
-						persistentFactor += sunExposureFactor;
-					else
-						persistentFactor += sunCosineFactor * sunInfo.FluxProportion;
-
-					// Only apply the exposure factor if not in shadow (body occlusion check)
-					if (sunInfo.SunlightFactor == 1.0) exposureFactor += sunExposureFactor;
-					else if (sunInfo == trackedSunInfo) exposureState = ExposureState.InShadow;
+					vd.SaveSolarPanelExposure(persistentFactor);
 				}
-				vd.SaveSolarPanelExposure(persistentFactor);
-			}
 
-			// get solar flux and deduce a scalar based on nominal flux at 1AU
-			// - this include atmospheric absorption if inside an atmosphere
-			// - at high timewarps speeds, atmospheric absorption is analytical (integrated over a full revolution)
-			double distanceFactor = vd.EnvSolarFluxTotal / Sim.SolarFluxAtHome;
+				// get solar flux and deduce a scalar based on nominal flux at 1AU
+				// - this include atmospheric absorption if inside an atmosphere
+				// - at high timewarps speeds, atmospheric absorption is analytical (integrated over a full revolution)
+				double distanceFactor = vd.EnvSolarFluxTotal / Sim.SolarFluxAtHome;
 
-			// get wear factor (time based output degradation)
-			wearFactor = 1.0;
-			if (timeEfficCurve?.Curve.length > 1)
-				wearFactor = Lib.Clamp(timeEfficCurve.Evaluate((float)((Planetarium.GetUniversalTime() - launchUT) / 3600.0)), 0.0, 1.0);
+				// get wear factor (time based output degradation)
+				wearFactor = 1.0;
+				if (timeEfficCurve?.Curve.length > 1)
+					wearFactor = Lib.Clamp(timeEfficCurve.Evaluate((float)((Planetarium.GetUniversalTime() - launchUT) / 3600.0)), 0.0, 1.0);
 
-			// get final output rate in EC/s
-			currentOutput = nominalRate * wearFactor * distanceFactor * exposureFactor;
+				// get final output rate in EC/s
+				currentOutput = nominalRate * wearFactor * distanceFactor * exposureFactor;
 
-			// ignore very small outputs
-			if (currentOutput < 1e-10)
-			{
-				currentOutput = 0.0;
+				// ignore very small outputs
+				if (currentOutput < 1e-10)
+				{
+					currentOutput = 0.0;
+					UnityEngine.Profiling.Profiler.EndSample();
+					return;
+				}
+
+				// get resource handler
+				ResourceInfo ec = ResourceCache.GetResource(vessel, "ElectricCharge");
+
+				// produce EC
+				ec.Produce(currentOutput * Kerbalism.elapsed_s, ResourceBroker.SolarPanel);
 				UnityEngine.Profiling.Profiler.EndSample();
-				return;
 			}
-
-			// get resource handler
-			ResourceInfo ec = ResourceCache.GetResource(vessel, "ElectricCharge");
-
-			// produce EC
-			ec.Produce(currentOutput * Kerbalism.elapsed_s, ResourceBroker.SolarPanel);
-			UnityEngine.Profiling.Profiler.EndSample();
+			catch
+			{
+				// simple guard against early init setup nullref logspam that can happen when kerbals go EVA from rovers.
+			}
 		}
 
 		public static void BackgroundUpdate(Vessel v, ProtoPartModuleSnapshot m, SolarPanelFixer prefab, VesselData vd, ResourceInfo ec, double elapsed_s)
