@@ -546,17 +546,24 @@ namespace KERBALISM
 		/// <summary> return the subject information for the given experiment and situation, or null if the situation isn't available. </summary>
 		public static SubjectData GetSubjectData(ExperimentInfo expInfo, Situation situation)
 		{
-			int situationId;
-			if (!situation.ScienceSituation.IsBiomesRelevantForExperiment(expInfo))
-				situationId = situation.GetBiomeAgnosticId();
-			else
-				situationId = situation.Id;
+			try
+			{
+				int situationId;
+				if (!situation.ScienceSituation.IsBiomesRelevantForExperiment(expInfo))
+					situationId = situation.GetBiomeAgnosticId();
+				else
+					situationId = situation.Id;
 
-			SubjectData subjectData;
-			if (!subjectByExpThenSituationId[expInfo].TryGetValue(situationId, out subjectData))
+				SubjectData subjectData;
+				if (!subjectByExpThenSituationId[expInfo].TryGetValue(situationId, out subjectData))
+					return null;
+
+				return subjectData;
+			}
+			catch
+			{
 				return null;
-
-			return subjectData;
+			}
 		}
 
 		/// <summary> return the subject information for the given experiment and situation, or null if the situation isn't available. </summary>
@@ -577,11 +584,18 @@ namespace KERBALISM
 		/// <summary> return the subject information for the given experiment and situation id, or null if the situation isn't available. </summary>
 		public static SubjectData GetSubjectData(ExperimentInfo expInfo, int situationId)
 		{
-			SubjectData subjectData;
-			if (!subjectByExpThenSituationId[expInfo].TryGetValue(situationId, out subjectData))
-				return null;
+			try
+			{
+				SubjectData subjectData;
+				if (!subjectByExpThenSituationId[expInfo].TryGetValue(situationId, out subjectData))
+					return null;
 
-			return subjectData;
+				return subjectData;
+			}
+			catch
+			{
+				return null;
+			}
 		}
 
 		/// <summary> return the subject information for the given experiment and situation, or null if the situation isn't available. </summary>
