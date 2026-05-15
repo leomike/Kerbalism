@@ -663,7 +663,7 @@ namespace KERBALISM
 			UnityEngine.Profiling.Profiler.BeginSample("Kerbalism.VesselData.Ctor");
 
 			ExistsInFlight = true;	// vessel exists
-			IsSimulated = false;	// will be evaluated in next fixedupdate
+			IsSimulated = true;	// will be evaluated in next fixedupdate
 
 			Vessel = vessel;
 			VesselId = Vessel.id;
@@ -693,7 +693,7 @@ namespace KERBALISM
 		{
 			UnityEngine.Profiling.Profiler.BeginSample("Kerbalism.VesselData.Ctor");
 			ExistsInFlight = false;
-			IsSimulated = false;
+			IsSimulated = true;
 
 			VesselId = protoVessel.vesselID;
 
