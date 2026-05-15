@@ -474,9 +474,16 @@ namespace KERBALISM.Planner
 
 		void Process_experiment(Experiment exp)
 		{
-			if (exp.Running)
+			try
 			{
-				Resource("ElectricCharge").Consume(exp.ec_rate, exp.ExpInfo.SampleMass == 0.0 ? "sensor" : "experiment");
+				if (exp.Running)
+				{
+					Resource("ElectricCharge").Consume(exp.ec_rate, exp.ExpInfo.SampleMass == 0.0 ? "sensor" : "experiment");
+				}
+			}
+			catch
+			{
+				//silences weird/broken experiments from logspamming.
 			}
 		}
 
