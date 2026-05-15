@@ -584,6 +584,7 @@ namespace KERBALISM
 			}
 			catch
 			{
+				situationId = -1;
 				return null;
 			}
 		}
