@@ -122,6 +122,8 @@ namespace KERBALISM
 			GameEvents.onGameSceneSwitchRequested.Add((_) => visible = false);
 			GameEvents.onGUIApplicationLauncherReady.Add(() => visible = true);
 
+			GameEvents.onLevelWasLoadedGUIReady.Add(this.updateTimewarp);
+
 			// add editor events
 			GameEvents.onEditorShipModified.Add((sc) => Planner.Planner.EditorShipModifiedEvent(sc));
 		}
@@ -142,6 +144,15 @@ namespace KERBALISM
             OnVesselModified(partVessel);
         }
 #endif
+		// Update allowed timewrap speeds to better align with background processing
+		void updateTimewarp(GameScenes scene)
+		{
+			// change default timewarp speeds
+			if (TimeWarp.fetch != null)
+			{
+				TimeWarp.fetch.warpRates = new float[8] { 1f, 5f, 25f, 100f, 250f, 1000f, 2500f, 5000f };
+			}
+		}
 
 		// Called when two vessels are about to be merged, while their state is not yet changed.
 		private void OnPartCouple(GameEvents.FromToAction<Part, Part> data)
