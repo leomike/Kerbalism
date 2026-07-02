@@ -175,7 +175,8 @@ namespace KERBALISM
 			if (fail)
 			{
 				enforce_breakdown = true;
-				explode = Lib.RandomDouble() < 0.1;
+				// Vary the risk of explosion based on the chance of critical failure
+				explode = Lib.RandomDouble() < PreferencesReliability.Instance.criticalChance / 5.0;
 
 				next = Planetarium.GetUniversalTime() + Lib.RandomDouble() * 2.0;
 
@@ -184,8 +185,8 @@ namespace KERBALISM
 
 				if(Lib.RandomDouble() < fuelSystemFailureProbability)
 				{
-					// broken fuel line -> delayed kaboom
-					explode = true;
+					// Broken fuel line may result in a delayed explosion
+					explode = Lib.RandomDouble() < PreferencesReliability.Instance.criticalChance / 2.0;
 					next += Lib.RandomDouble() * 10 + 4;
 					FlightLogger.fetch?.LogEvent(Local.FlightLogger_Destruction.Format(part.partInfo.title));// <<1>> fuel system leak caused destruction of the engine"
 				}
@@ -431,7 +432,8 @@ namespace KERBALISM
 				{
 					next = now;
 					enforce_breakdown = true;
-					explode = Lib.RandomDouble() < 0.2;
+					// Vary the risk of explosion based on the chance of critical failure
+					explode = Lib.RandomDouble() < PreferencesReliability.Instance.criticalChance / 5.0;
 #if DEBUG_RELIABILITY
 					Lib.Log("Reliability: " + part.partInfo.title + " fails because of material fatigue");
 #endif
