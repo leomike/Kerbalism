@@ -23,7 +23,8 @@ namespace KERBALISM
 		[KSPField] public string requires = string.Empty;     // additional requirements that must be met
 		[KSPField] public string crew_operate = string.Empty; // operator crew. if set, crew has to be on vessel while recording
 		[KSPField] public string crew_reset = string.Empty;   // reset crew. if set, experiment will stop recording after situation change
-		[KSPField] public string crew_prepare = string.Empty; // prepare crew. if set, experiment will require crew to set up before it can start recording 
+		[KSPField] public string crew_refill = string.Empty;   // refill crew. if set, experiment will require crew to refill
+		[KSPField] public string crew_prepare = string.Empty; // prepare crew. if set, experiment will require crew to set up before it can start recording
 		[KSPField] public string resources = string.Empty;    // resources consumed by this experiment
 		[KSPField] public bool hide_when_unavailable = false; // don't show UI when the experiment is unavailable
 		[KSPField] public string retractedDragCube = "Retracted";
@@ -65,6 +66,7 @@ namespace KERBALISM
 
 		private CrewSpecs operator_cs;
 		private CrewSpecs reset_cs;
+		private CrewSpecs refill_cs;
 		private CrewSpecs prepare_cs;
 
 		public bool isConfigurable = false;
@@ -174,6 +176,8 @@ namespace KERBALISM
 				operator_cs = new CrewSpecs(crew_operate);
 			if (!string.IsNullOrEmpty(crew_reset))
 				reset_cs = new CrewSpecs(crew_reset);
+			if (!string.IsNullOrEmpty(crew_refill))
+				refill_cs = new CrewSpecs(crew_refill);
 			if (!string.IsNullOrEmpty(crew_prepare))
 				prepare_cs = new CrewSpecs(crew_prepare);
 
@@ -195,6 +199,10 @@ namespace KERBALISM
 			Events["Reset"].guiActiveUncommand = true;
 			Events["Reset"].externalToEVAOnly = true;
 			Events["Reset"].requireFullControl = false;
+
+			Events["Refill"].guiActiveUncommand = true;
+			Events["Refill"].externalToEVAOnly = true;
+			Events["Refill"].requireFullControl = false;
 
 			ExpInfo = ScienceDB.GetExperimentInfo(experiment_id);
 
@@ -301,6 +309,12 @@ namespace KERBALISM
 				// we need a reset either if we have recorded data or did a setup
 				bool resetActive = (reset_cs != null || prepare_cs != null) && subject != null;
 				Events["Reset"].active = resetActive;
+
+				Events["Refill"].guiName = Lib.BuildString(Local.Module_Experiment_Refill + " <b>", ExpInfo.Title, "</b>");//Refill
+
+				// we need a refill if the experiment is a sample collector and more than 50% empty
+				bool refillActive = refill_cs != null && subject != null && !sample_collecting && remainingSampleMass < ExpInfo.SampleMass * 0.5;
+				Events["Refill"].active = refillActive;
 			}
 			// in the editor
 			else if (Lib.IsEditor())
@@ -308,6 +322,7 @@ namespace KERBALISM
 				// update ui
 				Events["ToggleEvent"].guiName = Lib.StatusToggle(ExpInfo.Title, StatusInfo(status, issue));
 				Events["Reset"].active = false;
+				Events["Refill"].active = false;
 				Events["Prepare"].active = false;
 			}
 		}
@@ -998,6 +1013,51 @@ namespace KERBALISM
 			{
 				Message.Post(
 				  Local.Module_Experiment_Message7,//"Reset Done"
+				  Lib.TextVariant
+				  (
+					Local.Module_Experiment_Message8,//"It's good to go again"
+					Local.Module_Experiment_Message9//"Ready for the next bit of science"
+				  )
+				);
+			}
+			return true;
+		}
+
+		[KSPEvent(guiActiveUnfocused = true, guiName = "_", active = false, groupName = "Science", groupDisplayName = "#KERBALISM_Group_Science")]//Science
+		public void Refill()
+		{
+			Refill(true);
+		}
+
+		private bool Refill(bool showMessage)
+		{
+			Vessel v = FlightGlobals.ActiveVessel;
+			if (v == null) return false;
+
+			if (refill_cs == null)
+				return false;
+
+			if (!refill_cs.Check(v))
+			{
+				Message.Post(
+				  Lib.TextVariant
+				  (
+					Local.Module_Experiment_Message1,//"I'm not qualified for this"
+					Local.Module_Experiment_Message2,//"I will not even know where to start"
+					Local.Module_Experiment_Message3//"I'm afraid I can't do that"
+				  ),
+				  refill_cs.Warning()
+				);
+				return false;
+			}
+
+			remainingSampleMass = ExpInfo.SampleMass * sample_amount;
+			situationId = 0;
+			didPrepare = false;
+
+			if (showMessage)
+			{
+				Message.Post(
 				  Lib.TextVariant
 				  (
 					Local.Module_Experiment_Message8,//"It's good to go again"
