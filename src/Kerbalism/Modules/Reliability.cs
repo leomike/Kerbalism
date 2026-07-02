@@ -335,9 +335,8 @@ namespace KERBALISM
 				if (next <= 0)
 				{
 					last = now;
-					var guaranteed = mtbf / 2.0;
-					var r = 1 - Math.Pow(Lib.RandomDouble(), 3);
-					next = now + guaranteed + mtbf * (quality ? Settings.QualityScale : 1.0) * r;
+					// using an exponential distribution resulting in a constant MTBF over the lifetime of the part
+					next = now + mtbf * (quality ? Settings.QualityScale : 1.0) * Math.Log(Lib.RandomDouble());
 #if DEBUG_RELIABILITY
 					Lib.Log("Reliability: MTBF failure in " + (now - next) + " for " + part.partInfo.title);
 #endif
@@ -396,33 +395,9 @@ namespace KERBALISM
 
 				if (fail_duration <= 0)
 				{
-					// see https://www.desmos.com/calculator/l2sdoauiyw
-					// these values will give the following result:
-					// 0% failure at 40% of the operation duration
-					// 1.68% failure at 100% of the operation duration
-					// 100% failure at 140% of the operation duration
-
-					int r = 8; // the random number exponent
-					var g = 0.4; // guarantee factor
-
 					// calculate a random point on which the engine will fail
-
-					var f = rated_operation_duration;
-					if (quality) f *= Settings.QualityScale;
-
-					// extend engine burn duration by preference value 
-					f /= PreferencesReliability.Instance.engineOperationFailureChance;
-
-					// random^r so we get an exponentially increasing failure probability
-					var p = Math.Pow(Lib.RandomDouble(), r);
-
-					// 1-p turns the probability of failure into one of non-failure
-					p = 1 - p;
-
-					// 35% guaranteed burn duration
-					var guaranteed_operation = f * g;
-
-					fail_duration = guaranteed_operation + f * p;
+					// using an exponential distribution resulting in a constant MTBF over the lifetime of the part
+					fail_duration = rated_operation_duration * (quality ? Settings.QualityScale : 1.0) * (1 - Math.Log(Lib.RandomDouble()) / PreferencesReliability.Instance.engineOperationFailureChance);
 #if DEBUG_RELIABILITY
 					Lib.Log(part.partInfo.title + " will fail after " + Lib.HumanReadableDuration(fail_duration) + " burn time");
 #endif
@@ -460,9 +435,8 @@ namespace KERBALISM
 			// calculate epoch of failure if necessary
 			if (next <= 0)
 			{
-				var guaranteed = reliability.mtbf / 2.0;
-				var r = 1 - Math.Pow(Lib.RandomDouble(), 3);
-				next = now + guaranteed + reliability.mtbf * (quality ? Settings.QualityScale : 1.0) * r;
+				// using an exponential distribution resulting in a constant MTBF over the lifetime of the part
+				next = now + reliability.mtbf * (quality ? Settings.QualityScale : 1.0) * Math.Log(Lib.RandomDouble());
 				Lib.Proto.Set(m, "last", now);
 				Lib.Proto.Set(m, "next", next);
 #if DEBUG_RELIABILITY
