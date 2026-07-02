@@ -38,6 +38,7 @@ namespace KERBALISM
 		[KSPField(isPersistant = true)] public double operation_duration = 0.0; // failure rate increases dramatically if this is exceeded
 		[KSPField(isPersistant = true)] public double fail_duration = 0.0;  // fail when operation_duration exceeds this
 		[KSPField(isPersistant = true)] public int ignitions = 0;           // accumulated ignitions
+		[KSPField(isPersistant = true)] public double last_running = 0;           // time of the last running state
 
 		// status ui
 		[KSPField(guiActive = true, guiActiveEditor = true, guiName = "_", groupName = "Reliability", groupDisplayName = "#KERBALISM_Group_Reliability")]//Reliability
@@ -378,8 +379,13 @@ namespace KERBALISM
 				if (IsRunning())
 				{
 					running = true;
-					if (IgnitionCheck())
-						Break();
+					// don't count ignition that happen shortly after shutdown given the complexity of low throttle management
+					if (now > last_running + 10)
+					{
+						if (IgnitionCheck())
+							Break();
+					}
+					last_running = now;
 				}
 			}
 			else
