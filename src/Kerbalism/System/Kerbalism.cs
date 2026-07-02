@@ -674,6 +674,10 @@ namespace KERBALISM
 
 				// give the vessel some supplies
 				Profile.SetupRescue(v);
+
+				// sync vessel resources once to avoid ow ressource warnings
+				VesselResources resources = ResourceCache.Get(v);
+				resources.Sync(v, v.KerbalismData(), 1.0);
 			}
 		}
 
