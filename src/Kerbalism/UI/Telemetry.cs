@@ -77,13 +77,6 @@ namespace KERBALISM
 
 			p.AddSection(Local.TELEMETRY_ENVIRONMENT);//"ENVIRONMENT"
 
-			if (vd.SolarPanelsAverageExposure >= 0.0)
-			{
-				var exposureString = vd.SolarPanelsAverageExposure.ToString("P1");
-				if (vd.SolarPanelsAverageExposure < 0.2) exposureString = Lib.Color(exposureString, Lib.Kolor.Orange);
-				p.AddContent(Local.TELEMETRY_SolarPanelsAverageExposure, exposureString, "<b>"+Local.TELEMETRY_Exposureignoringbodiesocclusion +"</b>\n<i>"+Local.TELEMETRY_Exposureignoringbodiesocclusion_desc +"</i>");//"solar panels average exposure""Exposure ignoring bodies occlusion""Won't change on unloaded vessels\nMake sure to optimize it before switching
-			}
-
 			foreach (string type in readings)
 			{
 				p.AddContent(type.ToLower().Replace('_', ' '), Sensor.Telemetry_content(v, vd, type), Sensor.Telemetry_tooltip(v, vd, type));
