@@ -352,6 +352,8 @@ namespace KERBALISM
 					resources.Sync(v, vd, elapsed_s);
 					UnityEngine.Profiling.Profiler.EndSample();
 
+					SystemHeatBackgroundThermal.CaptureLoadedTemperatures(v);
+
 					// call automation scripts
 					vd.computer.Automate(v, vd, resources);
 
@@ -408,14 +410,22 @@ namespace KERBALISM
 				CommsMessages.Update(last_v, last_vd, last_time);
 				UnityEngine.Profiling.Profiler.EndSample();
 
-				UnityEngine.Profiling.Profiler.BeginSample("Kerbalism.FixedUpdate.Unloaded.Profile");
-				// apply rules
-				Profile.Execute(last_v, last_vd, last_resources, last_time);
-				UnityEngine.Profiling.Profiler.EndSample();
-
 				UnityEngine.Profiling.Profiler.BeginSample("Kerbalism.FixedUpdate.Unloaded.Background");
 				// simulate modules in background
 				Background.Update(last_v, last_vd, last_resources, last_time);
+				UnityEngine.Profiling.Profiler.EndSample();
+
+				UnityEngine.Profiling.Profiler.BeginSample("Kerbalism.FixedUpdate.Unloaded.SystemHeat");
+				SystemHeatBackgroundThermal.TryRun(last_v, last_time);
+				UnityEngine.Profiling.Profiler.EndSample();
+
+				UnityEngine.Profiling.Profiler.BeginSample("Kerbalism.FixedUpdate.Unloaded.FissionReactor");
+				SystemHeatBackgroundThermal.PrepareFrozenFissionReactors(last_v, last_time);
+				UnityEngine.Profiling.Profiler.EndSample();
+
+				UnityEngine.Profiling.Profiler.BeginSample("Kerbalism.FixedUpdate.Unloaded.Profile");
+				// apply rules
+				Profile.Execute(last_v, last_vd, last_resources, last_time);
 				UnityEngine.Profiling.Profiler.EndSample();
 
 				UnityEngine.Profiling.Profiler.BeginSample("Kerbalism.FixedUpdate.Unloaded.Science");
