@@ -851,9 +851,9 @@ namespace KERBALISM
 			return specs;
 		}
 
-		// module info support
-		public string GetModuleTitle() { return Lib.BuildString(title, " ", Local.Reliability_Reliability); }
-		public override string GetModuleDisplayName() { return Lib.BuildString(title, " ",Local.Reliability_Reliability); }//Reliability
+        // module info support
+        public string GetModuleTitle() { return Lib.BuildString(title, " ", Local.Reliability_Reliability); }
+        public override string GetModuleDisplayName() { return Lib.BuildString(title, " ",Local.Reliability_Reliability); }//Reliability
 		public string GetPrimaryField() { return string.Empty; }
 		public Callback<Rect> GetDrawModulePanelCallback() { return null; }
 
@@ -1161,27 +1161,6 @@ namespace KERBALISM
 					critical |= Lib.Proto.GetBool(m, "critical");
 				}
 			}
-		}
-
-
-		// return true if at least a component has a critical failure
-		public static bool HasCriticalFailure(Vessel v)
-		{
-			if (v.loaded)
-			{
-				foreach (Reliability m in Lib.FindModules<Reliability>(v))
-				{
-					if (m.critical) return true;
-				}
-			}
-			else
-			{
-				foreach (ProtoPartModuleSnapshot m in Lib.FindModules(v.protoVessel, "Reliability"))
-				{
-					if (Lib.Proto.GetBool(m, "critical")) return true;
-				}
-			}
-			return false;
 		}
 
 		public static string LocalizeRedundancyGroup(string group)
