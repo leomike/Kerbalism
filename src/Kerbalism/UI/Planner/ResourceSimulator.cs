@@ -757,13 +757,17 @@ namespace KERBALISM.Planner
 				Propellant prop = propellants[i];
 				if (prop.id == PartResourceLibrary.ElectricityHashcode)
 				{
-					case "ElectricCharge":  // mainly used for Ion Engines
-						Resource("ElectricCharge").Consume(thrust_flow * fuel.ratio, Local.Planner_source_engines);
-						break;
-					case "LqdHydrogen":     // added for cryotanks and any other supported mod that uses Liquid Hydrogen
-						Resource("LqdHydrogen").Consume(thrust_flow * fuel.ratio, Local.Planner_source_engines);
-						break;
-				}
+                    usesCharge = true;
+                    ecRatio = prop.ratio;
+                    ecPropellant = prop;
+                }
+                else
+                {
+                    ratioSum += prop.ratio;
+                    PartResourceDefinition def = PartResourceLibrary.Instance.GetDefinition(prop.name);
+                    if (def != null)
+                        massFlowSum += prop.ratio * def.density;
+                }
 			}
 
 			if (ratioSum <= double.Epsilon)
@@ -774,16 +778,16 @@ namespace KERBALISM.Planner
 
 			for (int i = 0; i < propellants.Count; i++)
 			{
-				switch (fuel.name)
-				{
-					case "ElectricCharge":  // mainly used for Ion Engines
-						Resource("ElectricCharge").Consume(thrust_flow * fuel.ratio, Local.Planner_source_engines);
-						break;
-					case "LqdHydrogen":     // added for cryotanks and any other supported mod that uses Liquid Hydrogen
-						Resource("LqdHydrogen").Consume(thrust_flow * fuel.ratio, Local.Planner_source_engines);
-						break;
-				}
-			}
+                Propellant prop = propellants[i];
+                if (prop.id == PartResourceLibrary.ElectricityHashcode)
+                    continue;
+
+                double rate = (massFlowTotal / mixtureRatio) * prop.ratio / ratioSum;
+                totalRate += rate;
+
+                double scaled = rate * throttle;
+                ConsumeTrackedPropellant(prop.name, scaled, category, sim);
+            }
 
 			if (!usesCharge)
 				return;
@@ -794,35 +798,37 @@ namespace KERBALISM.Planner
 				float ecFlow = engForStockEc.getMaxFuelFlow(ecPropellant);
 				if (ecFlow > 0f)
 				{
-					case "ElectricCharge":  // mainly used for Ion RCS
-						Resource("ElectricCharge").Consume(thrust_flow * fuel.ratio, Local.Planner_source_rcs);
-						break;
-					case "LqdHydrogen":     // added for cryotanks and any other supported mod that uses Liquid Hydrogen
-						Resource("LqdHydrogen").Consume(thrust_flow * fuel.ratio, Local.Planner_source_rcs);
-						break;
-				}
+                    sim.Resource("ElectricCharge").Consume(ecFlow * throttle, category);
+                    return;
+                }
 			}
 
 			sim.Resource("ElectricCharge").Consume(ecRatio / ratioSum * totalRate * throttle, category);
 		}
 
-		static void ConsumeTrackedPropellant(string resourceName, double rate, string category, ResourceSimulator sim)
-		{
-			switch (resourceName)
-			{
-				switch (fuel.name)
-				{
-					case "ElectricCharge":  // mainly used for Ion RCS
-						Resource("ElectricCharge").Consume(thrust_flow * fuel.ratio, Local.Planner_source_rcs);
-						break;
-					case "LqdHydrogen":     // added for cryotanks and any other supported mod that uses Liquid Hydrogen
-						Resource("LqdHydrogen").Consume(thrust_flow * fuel.ratio, Local.Planner_source_rcs);
-						break;
-				}
-			}
-		}
+            static void ConsumeTrackedPropellant(string resourceName, double rate, string category, ResourceSimulator sim)
+            {
+                switch (resourceName)
+                {
+                    case "ElectricCharge":
+                        sim.Resource("ElectricCharge").Consume(rate, category);
+                        break;
+                    case "LqdHydrogen":
+                        sim.Resource("LqdHydrogen").Consume(rate, category);
+                        break;
+                    case "Lithium":
+                        sim.Resource("Lithium").Consume(rate, category);
+                        break;
+                    case "XenonGas":
+                        sim.Resource("XenonGas").Consume(rate, category);
+                        break;
+                    case "ArgonGas":
+                        sim.Resource("ArgonGas").Consume(rate, category);
+                        break;
+                }
+            }
 
-		static void ConsumeEnginePropellants(ModuleEngines eng, string category, ResourceSimulator sim)
+            static void ConsumeEnginePropellants(ModuleEngines eng, string category, ResourceSimulator sim)
 		{
 			if (eng.propellants == null || eng.propellants.Count == 0 || eng.thrustPercentage <= 0.0f)
 				return;
