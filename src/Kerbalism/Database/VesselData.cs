@@ -655,7 +655,7 @@ namespace KERBALISM
 		/// <summary> This ctor is to be used for newly created vessels </summary>
 		public VesselData(Vessel vessel)
 		{
-			UnityEngine.Profiling.Profiler.BeginSample("Kerbalism.VesselData.Ctor");
+			Profiler.BeginSample("VesselData.Ctor");
 
 			ExistsInFlight = true;	// vessel exists
 			IsSimulated = true;	// will be evaluated in next fixedupdate
@@ -676,7 +676,7 @@ namespace KERBALISM
 			InitializeCommHandler();
 
 			Lib.LogDebug("VesselData ctor (new vessel) : id '" + VesselId + "' (" + Vessel.vesselName + "), part count : " + parts.Count);
-			UnityEngine.Profiling.Profiler.EndSample();
+			Profiler.EndSample();
 		}
 
 		/// <summary>
@@ -686,7 +686,7 @@ namespace KERBALISM
 		/// </summary>
 		public VesselData(ProtoVessel protoVessel, ConfigNode node)
 		{
-			UnityEngine.Profiling.Profiler.BeginSample("Kerbalism.VesselData.Ctor");
+			Profiler.BeginSample("VesselData.Ctor");
 			ExistsInFlight = false;
 			IsSimulated = true;
 
@@ -709,7 +709,7 @@ namespace KERBALISM
 
 			InitializeCommHandler();
 
-			UnityEngine.Profiling.Profiler.EndSample();
+			Profiler.EndSample();
 		}
 
 		// note : this method should work even with a null ProtoVessel
@@ -897,7 +897,7 @@ namespace KERBALISM
 		#region vessel state evaluation
 		private void EvaluateStatus(double elapsedSeconds)
 		{
-			UnityEngine.Profiling.Profiler.BeginSample("Kerbalism.VesselData.EvaluateStatus");
+			Profiler.BeginSample("EvaluateStatus");
 			// determine if there is enough EC for a powered state
 			powered = Lib.IsPowered(Vessel);
 
@@ -922,23 +922,31 @@ namespace KERBALISM
 			CommHandler.UpdateConnection(connection);
 
 			// habitat data
+			Profiler.BeginSample("habitatInfo");
 			habitatInfo.Update(Vessel, this, elapsedSeconds);
+			Profiler.EndSample();
 			evas = (uint)(Settings.LifeSupportAtmoLoss > 0 ? (ResourceCache.GetResource(Vessel, "Nitrogen").Amount - 330) / Settings.LifeSupportAtmoLoss : 0);
+			Profiler.BeginSample("Comforts");
 			comforts = new Comforts(Vessel, EnvLanded, crewCount > 1, connection.linked && connection.rate > double.Epsilon);
+			Profiler.EndSample();
 
 			// data about greenhouses
+			Profiler.BeginSample("Greenhouses");
 			greenhouses = Greenhouse.Greenhouses(Vessel);
+			Profiler.EndSample();
 
+			Profiler.BeginSample("Drive.GetCapacity");
 			Drive.GetCapacity(this, out drivesFreeSpace, out drivesCapacity);
+			Profiler.EndSample();
 
-			UnityEngine.Profiling.Profiler.EndSample();
-		}
+            Profiler.EndSample();
+        }
 		#endregion
 
 		#region environment evaluation
 		private void EvaluateEnvironment(double elapsedSeconds)
 		{
-			UnityEngine.Profiling.Profiler.BeginSample("Kerbalism.VesselData.EvaluateStatus");
+			Profiler.BeginSample("EvaluateEnvironment");
 			// we use analytic mode if more than 2 minutes of game time has passed since last evaluation (~ x6000 timewarp speed)
 			isAnalytic = elapsedSeconds > 120.0;
 
@@ -959,24 +967,26 @@ namespace KERBALISM
 			inAtmosphere = Vessel.mainBody.atmosphere && Vessel.altitude < Vessel.mainBody.atmosphereDepth;
 			zeroG = !EnvLanded && !inAtmosphere;
 
+			Profiler.BeginSample("GetLargeBodies");
 			visibleBodies = Sim.GetLargeBodies(position);
+			Profiler.EndSample();
 
 			// get solar info (with multiple stars / Kopernicus support)
 			// get the 'visibleBodies' and 'sunsInfo' lists, the 'mainSun', 'solarFluxTotal' variables.
 			// require the situation variables to be evaluated first
-			UnityEngine.Profiling.Profiler.BeginSample("Kerbalism.VesselData.Sunlight");
+			Profiler.BeginSample("Sunlight");
 			SunInfo.UpdateSunsInfo(this, position, elapsedSeconds);
-			UnityEngine.Profiling.Profiler.EndSample();
+			Profiler.EndSample();
 			sunBodyAngle = Sim.SunBodyAngle(Vessel, position, mainSun.SunData.body);
 
 			// temperature at vessel position
-			UnityEngine.Profiling.Profiler.BeginSample("Kerbalism.VesselData.Temperature");
+			Profiler.BeginSample("Temperature");
 			temperature = Sim.Temperature(Vessel, position, solarFluxTotal, out albedoFlux, out bodyFlux, out totalFlux);
 			tempDiff = Sim.TempDiff(EnvTemperature, Vessel.mainBody, EnvLanded);
-			UnityEngine.Profiling.Profiler.EndSample();
+            Profiler.EndSample();
 
-			// radiation
-			UnityEngine.Profiling.Profiler.BeginSample("Kerbalism.VesselData.Radiation");
+            // radiation
+            Profiler.BeginSample("Radiation");
 			gammaTransparency = Sim.GammaTransparency(Vessel.mainBody, Vessel.altitude);
 
 			bool new_innerBelt, new_outerBelt, new_magnetosphere;
@@ -989,8 +999,9 @@ namespace KERBALISM
 				magnetosphere = new_magnetosphere;
 				if(Evaluated) API.OnRadiationFieldChanged.Notify(Vessel, innerBelt, outerBelt, magnetosphere);
 			}
-			UnityEngine.Profiling.Profiler.EndSample();
+			Profiler.EndSample();
 
+			Profiler.BeginSample("StormsNstuff");
 			thermosphere = Sim.InsideThermosphere(Vessel);
 			exosphere = Sim.InsideExosphere(Vessel);
 			inStorm = Storm.InProgress(Vessel);
@@ -1008,7 +1019,8 @@ namespace KERBALISM
 
 			// other stuff
 			gravioli = Sim.Graviolis(Vessel);
-			UnityEngine.Profiling.Profiler.EndSample();
+			Profiler.EndSample();
+			Profiler.EndSample();
 		}
 
 		#endregion
