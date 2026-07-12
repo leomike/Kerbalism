@@ -103,11 +103,9 @@ namespace KERBALISM
 			// (so cached snapshot references would write to dead objects), and loading a vessel
 			// recreates all PartModules. None of the vessel-modified events fire on these transitions.
 			GameEvents.onVesselLoaded.Add((v) => Cache.PurgeVesselCaches(v));
-#if (KSP111 || KSP112)
 			GameEvents.onVesselUnloaded.Add((v) => Cache.PurgeVesselCaches(v));
-#endif
 
-            GameEvents.OnTechnologyResearched.Add(this.TechResearched);
+			GameEvents.OnTechnologyResearched.Add(this.TechResearched);
 			GameEvents.onGUIEditorToolbarReady.Add(this.AddEditorCategory);
 
 			GameEvents.onGUIAdministrationFacilitySpawn.Add(() => visible = false);

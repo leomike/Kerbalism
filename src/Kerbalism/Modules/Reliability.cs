@@ -851,9 +851,9 @@ namespace KERBALISM
 			return specs;
 		}
 
-        // module info support
-        public string GetModuleTitle() { return Lib.BuildString(title, " ", Local.Reliability_Reliability); }
-        public override string GetModuleDisplayName() { return Lib.BuildString(title, " ",Local.Reliability_Reliability); }//Reliability
+		// module info support
+		public string GetModuleTitle() { return Lib.BuildString(title, " ", Local.Reliability_Reliability); }
+		public override string GetModuleDisplayName() { return Lib.BuildString(title, " ",Local.Reliability_Reliability); }//Reliability
 		public string GetPrimaryField() { return string.Empty; }
 		public Callback<Rect> GetDrawModulePanelCallback() { return null; }
 
@@ -1162,6 +1162,7 @@ namespace KERBALISM
 				}
 			}
 		}
+
 
 		public static string LocalizeRedundancyGroup(string group)
 		{
