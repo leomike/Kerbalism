@@ -908,9 +908,9 @@ namespace KERBALISM
 			// malfunction stuff
 			if (Features.Reliability)
 			{
-				Profiler.Start("Reliability");
+				Profiler.BeginSample("Reliability");
 				Reliability.GetVesselState(Vessel, out malfunction, out critical);
-				Profiler.Stop("Reliability");
+				Profiler.EndSample();
 			}
 			else
 			{

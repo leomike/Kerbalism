@@ -90,11 +90,9 @@ namespace KERBALISM
 			GameEvents.onPartCouple.Add(this.OnPartCouple);
 			GameEvents.onPartCoupleComplete.Add(this.OnPartCoupleComplete);
 
-#if (KSP111 || KSP112)
             // EVA construction events are going trough dedicated stock code paths that don't trigger the other events
             GameEvents.OnEVAConstructionModePartAttached.Add(this.OnEVAConstructionModePartAttached);
             GameEvents.OnEVAConstructionModePartDetached.Add(this.OnEVAConstructionModePartDetached);
-#endif
 			GameEvents.onVesselChange.Add((v) => { OnVesselModified(v); });
 			GameEvents.onVesselStandardModification.Add((v) => { OnVesselStandardModification(v); });
 
@@ -134,7 +132,6 @@ namespace KERBALISM
 			GameEvents.onEditorShipModified.Add((sc) => Planner.Planner.EditorShipModifiedEvent(sc));
 		}
 
-#if (KSP111 || KSP112)
         // this require special handling as EVA construction doesn't trigger the other events
         private void OnEVAConstructionModePartAttached(Vessel partVessel, Part part)
         {
@@ -149,7 +146,6 @@ namespace KERBALISM
 			VesselData.OnPartWillDie(partVessel, part.flightID);
             OnVesselModified(partVessel);
         }
-#endif
 
 		private void OnGameSceneSwitchRequested(GameEvents.FromToAction<GameScenes, GameScenes> data)
 		{
@@ -351,21 +347,6 @@ namespace KERBALISM
             double evaPropQuantity = 0.0;
             bool hasJetPack = false;
 
-#if KSP18 || KSP110
-
-			hasJetPack = true;
-			double evaPropCapacity = Lib.EvaPropellantCapacity();
-
-			// take as much of the propellant as possible. just imagine: there are 1.3 units left, and 12 occupants
-			// in the ship. you want to send out an engineer to fix the chemical plant that produces monoprop,
-			// and have to get from one end of the station to the other with just 0.1 units in the tank...
-			// nope.
-			evaPropQuantity = hatchPart.RequestResource(evaPropName, evaPropCapacity);
-
-			// Stock KSP adds 5 units of monoprop to EVAs. We want to limit that amount
-			// to whatever was available in the ship, so we don't magically create EVA prop out of nowhere
-			Lib.SetResource(evaKerbalPart, evaPropName, evaPropQuantity, evaPropCapacity);
-#else
             // Since KSP 1.11, EVA prop is stored on "EVA jetpack" inventory part, and filled in the editor, removing
             // the need for handling where the EVA propellant comes from (there is no more magic refill in stock).
             // However, stock doesn't provide any way to refill the jetpack, so we still handle that.
@@ -410,7 +391,6 @@ namespace KERBALISM
                 if (hasJetPack && transferred && kerbalEVA.ModuleInventoryPartReference != null)
                     GameEvents.onModuleInventoryChanged.Fire(kerbalEVA.ModuleInventoryPartReference);
             }
-#endif
 
             // show warning if there is little or no EVA propellant in the suit
             if (hasJetPack && evaPropQuantity <= 0.05 && !Lib.Landed(hatchPart.vessel))
@@ -436,8 +416,6 @@ namespace KERBALISM
 				// add leftovers to the vessel
 				data.to.RequestResource(res.resourceName, -res.amount);
 			}
-
-#if !KSP18 && !KSP110
 
 			string evaPropName = Lib.EvaPropellantName();
 			if (evaPropName != "EVA Propellant")
@@ -484,7 +462,6 @@ namespace KERBALISM
 					data.to.protoModuleCrew[data.to.protoModuleCrew.Count - 1].SaveInventory(kerbalEVA.ModuleInventoryPartReference);
 				}
 			}
-#endif
 
 			// merge drives data
 			Drive.Transfer(data.from.vessel, data.to.vessel, true);
