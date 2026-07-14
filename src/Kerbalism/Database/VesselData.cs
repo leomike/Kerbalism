@@ -131,7 +131,7 @@ namespace KERBALISM
 		/// <summary> [environment] temperature ar vessel position</summary>
 		public double EnvTemperature => temperature; double temperature;
 
-		/// <summary> [environment] difference between environment temperature and survival temperature</summary>// 
+		/// <summary> [environment] difference between environment temperature and survival temperature</summary>//
 		public double EnvTempDiff => tempDiff; double tempDiff;
 
 		/// <summary> [environment] radiation at vessel position</summary>
@@ -395,6 +395,57 @@ namespace KERBALISM
 
 		/// <summary>data capacity of all public drives</summary>
 		public double DrivesCapacity => drivesCapacity; double drivesCapacity = 0.0;
+
+		/// <summary>
+		/// Vessel equilibrium temperature calculated with actual vessel geometry (surface area,
+		/// solar cross-section, emissivity) cached from the last time the vessel was loaded.
+		/// Falls back to EnvTemperature if no geometry data is available yet.
+		/// </summary>
+		public double VesselTemperature => vesselTemperature; double vesselTemperature;
+
+		/// <summary> Solar power absorbed by the vessel hull in W. Zero if geometry data not yet cached.</summary>
+		public double AbsorbedSolarFlux => absorbedSolarFlux; double absorbedSolarFlux;
+
+		/// <summary> Albedo power absorbed by the vessel hull in W. Zero if geometry data not yet cached.</summary>
+		public double AbsorbedAlbedoFlux => absorbedAlbedoFlux; double absorbedAlbedoFlux;
+
+		/// <summary> Body IR power absorbed by the vessel hull in W. Zero if geometry data not yet cached.</summary>
+		public double AbsorbedBodyFlux => absorbedBodyFlux; double absorbedBodyFlux;
+
+		/// <summary> Total radiative power absorbed by the vessel hull in W. Zero if geometry data not yet cached.</summary>
+		public double AbsorbedTotalFlux => absorbedTotalFlux; double absorbedTotalFlux;
+
+		/// <summary>
+		/// Total skin surface area of the vessel in m², cached from last time loaded.
+		/// -1 if not yet measured.
+		/// </summary>
+		public double VesselSurfaceArea => vesselSurfaceArea; double vesselSurfaceArea = -1.0;
+
+		/// <summary>
+		/// Effective absorbing cross-section toward the sun in m², cached from last time loaded.
+		/// Encodes vessel orientation relative to sun and per-part absorptivity.
+		/// -1 if not yet measured.
+		/// </summary>
+		public double VesselSolarCrossSection => vesselSolarCrossSection; double vesselSolarCrossSection = -1.0;
+
+		/// <summary>
+		/// Effective absorbing cross-section toward the body/nadir in m², cached from last time loaded.
+		/// Used for albedo and body IR flux, which both arrive from below the vessel.
+		/// -1 if not yet measured.
+		/// </summary>
+		public double VesselBodyCrossSection => vesselBodyCrossSection; double vesselBodyCrossSection = -1.0;
+
+		/// <summary>
+		/// Orbit-averaged body cross-section: analytical average of <see cref="VesselBodyCrossSection"/>
+		/// over a full circular orbit, computed from the orbital plane normal when the vessel is loaded.
+		/// Used in place of the instantaneous value for unloaded vessels. -1 if not yet measured.
+		/// </summary>
+		public double VesselBodyCrossSectionOrbitAvg => vesselBodyCrossSectionOrbitAvg; double vesselBodyCrossSectionOrbitAvg = -1.0;
+
+		/// <summary>
+		/// Flux-weighted average emissivity of the vessel skin, cached from last time loaded.
+		/// </summary>
+		public double VesselEmissivity => vesselEmissivity; double vesselEmissivity = 0.9;
 
 		private List<ReliabilityInfo> reliabilityStatus;
 		public List<ReliabilityInfo> ReliabilityStatus()
@@ -769,6 +820,12 @@ namespace KERBALISM
 
 			scienceTransmitted = Lib.ConfigValue(node, "scienceTransmitted", 0.0);
 
+			vesselSurfaceArea = Lib.ConfigValue(node, "vesselSurfaceArea", -1.0);
+			vesselSolarCrossSection = Lib.ConfigValue(node, "vesselSolarCrossSection", -1.0);
+			vesselBodyCrossSection = Lib.ConfigValue(node, "vesselBodyCrossSection", -1.0);
+			vesselBodyCrossSectionOrbitAvg = Lib.ConfigValue(node, "vesselBodyCrossSectionOrbitAvg", -1.0);
+			vesselEmissivity = Lib.ConfigValue(node, "vesselEmissivity", 0.9);
+
 			stormData = new StormData(node.GetNode("StormData"));
 			habitatInfo = new VesselHabitatInfo(node.GetNode("SunShielding"));
 			computer = new Computer(node.GetNode("computer"));
@@ -842,6 +899,13 @@ namespace KERBALISM
 			node.AddValue("deviceTransmit", deviceTransmit);
 
 			node.AddValue("scienceTransmitted", scienceTransmitted);
+
+			node.AddValue("vesselSurfaceArea", vesselSurfaceArea);
+			node.AddValue("vesselSolarCrossSection", vesselSolarCrossSection);
+			node.AddValue("vesselBodyCrossSection", vesselBodyCrossSection);
+			TryRefreshVesselBodyCrossSectionAvg();
+			node.AddValue("vesselBodyCrossSectionOrbitAvg", vesselBodyCrossSectionOrbitAvg);
+			node.AddValue("vesselEmissivity", vesselEmissivity);
 
 			stormData.Save(node.AddNode("StormData"));
 			computer.Save(node.AddNode("computer"));
@@ -983,10 +1047,50 @@ namespace KERBALISM
 			Profiler.BeginSample("Temperature");
 			temperature = Sim.Temperature(Vessel, position, solarFluxTotal, out albedoFlux, out bodyFlux, out totalFlux);
 			tempDiff = Sim.TempDiff(EnvTemperature, Vessel.mainBody, EnvLanded);
-            Profiler.EndSample();
 
-            // radiation
-            Profiler.BeginSample("Radiation");
+			// update thermal geometry cache whenever loaded — occlusion multipliers and drag cube
+			// projections are purely geometric and kept current by KSP regardless of sunlight state
+			if (Vessel.loaded)
+			{
+				// nadir direction: vessel → body center
+				Vector3d bodyDir = (Vessel.mainBody.position - position).normalized;
+				double newArea, newSolarCS, newBodyCS, newEmissivity;
+				if (Sim.UpdateVesselThermalCache(Vessel, mainSun.Direction, bodyDir,
+					out newArea, out newSolarCS, out newBodyCS, out newEmissivity))
+				{
+					vesselSurfaceArea = newArea;
+					vesselSolarCrossSection = newSolarCS;
+					vesselBodyCrossSection = newBodyCS;
+					vesselEmissivity = newEmissivity;
+				}
+			}
+
+			// compute geometry-corrected temperature if we have cached data, otherwise fall back.
+			// Use KSP's GetAtmoThermalStats for body/albedo irradiance: instantaneous, position-correct
+			// for eccentric orbits, and consistent with what KSP's thermal panel reports.
+			double effectiveBodyCS = (Vessel.loaded || vesselBodyCrossSectionOrbitAvg < 0.0 || landed)
+				? vesselBodyCrossSection
+				: vesselBodyCrossSectionOrbitAvg;
+			if (vesselSurfaceArea > 0.0 && vesselSolarCrossSection >= 0.0 && effectiveBodyCS >= 0.0)
+			{
+				double instBodyFlux, instAlbedoFlux;
+				Sim.InstantBodyAlbedoFlux(Vessel.mainBody, mainSun.SunData.body,
+					position, mainSun.Direction, Vessel.altitude,
+					out instBodyFlux, out instAlbedoFlux);
+				vesselTemperature = Sim.TemperatureWithGeometry(
+					Vessel, solarFluxTotal, instAlbedoFlux, instBodyFlux,
+					vesselSolarCrossSection, effectiveBodyCS, vesselSurfaceArea, vesselEmissivity,
+					out absorbedSolarFlux, out absorbedAlbedoFlux, out absorbedBodyFlux, out absorbedTotalFlux);
+			}
+			else
+			{
+				vesselTemperature = temperature;
+				absorbedSolarFlux = absorbedAlbedoFlux = absorbedBodyFlux = absorbedTotalFlux = 0.0;
+			}
+			Profiler.EndSample();
+
+			// radiation
+			Profiler.BeginSample("Radiation");
 			gammaTransparency = Sim.GammaTransparency(Vessel.mainBody, Vessel.altitude);
 
 			bool new_innerBelt, new_outerBelt, new_magnetosphere;
@@ -1021,6 +1125,17 @@ namespace KERBALISM
 			gravioli = Sim.Graviolis(Vessel);
 			Profiler.EndSample();
 			Profiler.EndSample();
+		}
+
+		private void TryRefreshVesselBodyCrossSectionAvg()
+		{
+			if (Vessel != null && Vessel.loaded && !Vessel.Landed && !Vessel.Splashed)
+			{
+				Vector3d pos = Vessel.CoMD;
+				Vector3d orbitNormal = Vector3d.Cross(pos - (Vector3d)Vessel.mainBody.position, Vessel.obt_velocity).normalized;
+				double orbitAvg = Sim.ComputeOrbitAvgBodyCrossSection(Vessel, orbitNormal);
+				if (orbitAvg >= 0.0) vesselBodyCrossSectionOrbitAvg = orbitAvg;
+			}
 		}
 
 		#endregion
