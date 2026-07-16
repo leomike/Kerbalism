@@ -12,6 +12,8 @@
 
     <KSPBT_ModRoot>$(ProjectRootDir)GameData\Kerbalism</KSPBT_ModRoot>
     <KSPBT_ModPluginFolder>.</KSPBT_ModPluginFolder>
+    <KSPBT_GenerateAssemblyAttribute>false</KSPBT_GenerateAssemblyAttribute>
+    <KSPBT_GenerateDependencyAttributes>false</KSPBT_GenerateDependencyAttributes>
     <!-- Opt-in: copy GameData to the live KSP install. Set in Kerbalism.props.user. -->
     <Kerbalism_DeployToKsp Condition=" '$(Kerbalism_DeployToKsp)' == '' ">false</Kerbalism_DeployToKsp>
 
@@ -23,38 +25,6 @@
     <Version>$(KSPBT_ModVersion)</Version>
     <FileVersion>$(Version)</FileVersion>
   </PropertyGroup>
-
-  <ItemGroup>
-    <!-- System Dlls -->
-    <Reference Include="System">
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="System.Core">
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="System.Xml">
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="System.Xml.Linq">
-      <Private>False</Private>
-    </Reference>
-    <!-- Harmony reference, get it from the gamedata folder -->
-    <Reference Include="0Harmony, Version=2.2.1.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>$(KSPDevPath)\GameData\000_Harmony\0Harmony.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <!-- KSP Dlls -->
-    <Reference Include="$(EffectiveKSPDllPath)\Assembly-CSharp.dll">
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="$(EffectiveKSPDllPath)\Assembly-CSharp-firstpass.dll">
-      <Private>False</Private>
-    </Reference>
-    <!-- load all UnityEngine Dlls (since 1.8 we only need those) -->
-    <Reference Include="$(EffectiveKSPDllPath)\UnityEngine*.dll">
-      <Private>False</Private>
-    </Reference>
-  </ItemGroup>
 
   <ItemGroup>
     <Compile Remove="Output/**" />
