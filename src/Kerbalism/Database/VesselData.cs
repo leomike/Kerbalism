@@ -131,7 +131,7 @@ namespace KERBALISM
 		/// <summary> [environment] temperature ar vessel position</summary>
 		public double EnvTemperature => temperature; double temperature;
 
-		/// <summary> [environment] difference between environment temperature and survival temperature</summary>// 
+		/// <summary> [environment] difference between environment temperature and survival temperature</summary>//
 		public double EnvTempDiff => tempDiff; double tempDiff;
 
 		/// <summary> [environment] radiation at vessel position</summary>
@@ -396,6 +396,57 @@ namespace KERBALISM
 		/// <summary>data capacity of all public drives</summary>
 		public double DrivesCapacity => drivesCapacity; double drivesCapacity = 0.0;
 
+		/// <summary>
+		/// Vessel equilibrium temperature calculated with actual vessel geometry (surface area,
+		/// solar cross-section, emissivity) cached from the last time the vessel was loaded.
+		/// Falls back to EnvTemperature if no geometry data is available yet.
+		/// </summary>
+		public double VesselTemperature => vesselTemperature; double vesselTemperature;
+
+		/// <summary> Solar power absorbed by the vessel hull in W. Zero if geometry data not yet cached.</summary>
+		public double AbsorbedSolarFlux => absorbedSolarFlux; double absorbedSolarFlux;
+
+		/// <summary> Albedo power absorbed by the vessel hull in W. Zero if geometry data not yet cached.</summary>
+		public double AbsorbedAlbedoFlux => absorbedAlbedoFlux; double absorbedAlbedoFlux;
+
+		/// <summary> Body IR power absorbed by the vessel hull in W. Zero if geometry data not yet cached.</summary>
+		public double AbsorbedBodyFlux => absorbedBodyFlux; double absorbedBodyFlux;
+
+		/// <summary> Total radiative power absorbed by the vessel hull in W. Zero if geometry data not yet cached.</summary>
+		public double AbsorbedTotalFlux => absorbedTotalFlux; double absorbedTotalFlux;
+
+		/// <summary>
+		/// Total skin surface area of the vessel in m², cached from last time loaded.
+		/// -1 if not yet measured.
+		/// </summary>
+		public double VesselSurfaceArea => vesselSurfaceArea; double vesselSurfaceArea = -1.0;
+
+		/// <summary>
+		/// Effective absorbing cross-section toward the sun in m², cached from last time loaded.
+		/// Encodes vessel orientation relative to sun and per-part absorptivity.
+		/// -1 if not yet measured.
+		/// </summary>
+		public double VesselSolarCrossSection => vesselSolarCrossSection; double vesselSolarCrossSection = -1.0;
+
+		/// <summary>
+		/// Effective absorbing cross-section toward the body/nadir in m², cached from last time loaded.
+		/// Used for albedo and body IR flux, which both arrive from below the vessel.
+		/// -1 if not yet measured.
+		/// </summary>
+		public double VesselBodyCrossSection => vesselBodyCrossSection; double vesselBodyCrossSection = -1.0;
+
+		/// <summary>
+		/// Orbit-averaged body cross-section: analytical average of <see cref="VesselBodyCrossSection"/>
+		/// over a full circular orbit, computed from the orbital plane normal when the vessel is loaded.
+		/// Used in place of the instantaneous value for unloaded vessels. -1 if not yet measured.
+		/// </summary>
+		public double VesselBodyCrossSectionOrbitAvg => vesselBodyCrossSectionOrbitAvg; double vesselBodyCrossSectionOrbitAvg = -1.0;
+
+		/// <summary>
+		/// Flux-weighted average emissivity of the vessel skin, cached from last time loaded.
+		/// </summary>
+		public double VesselEmissivity => vesselEmissivity; double vesselEmissivity = 0.9;
+
 		private List<ReliabilityInfo> reliabilityStatus;
 		public List<ReliabilityInfo> ReliabilityStatus()
 		{
@@ -655,7 +706,7 @@ namespace KERBALISM
 		/// <summary> This ctor is to be used for newly created vessels </summary>
 		public VesselData(Vessel vessel)
 		{
-			UnityEngine.Profiling.Profiler.BeginSample("Kerbalism.VesselData.Ctor");
+			Profiler.BeginSample("VesselData.Ctor");
 
 			ExistsInFlight = true;	// vessel exists
 			IsSimulated = true;	// will be evaluated in next fixedupdate
@@ -676,7 +727,7 @@ namespace KERBALISM
 			InitializeCommHandler();
 
 			Lib.LogDebug("VesselData ctor (new vessel) : id '" + VesselId + "' (" + Vessel.vesselName + "), part count : " + parts.Count);
-			UnityEngine.Profiling.Profiler.EndSample();
+			Profiler.EndSample();
 		}
 
 		/// <summary>
@@ -686,7 +737,7 @@ namespace KERBALISM
 		/// </summary>
 		public VesselData(ProtoVessel protoVessel, ConfigNode node)
 		{
-			UnityEngine.Profiling.Profiler.BeginSample("Kerbalism.VesselData.Ctor");
+			Profiler.BeginSample("VesselData.Ctor");
 			ExistsInFlight = false;
 			IsSimulated = true;
 
@@ -709,7 +760,7 @@ namespace KERBALISM
 
 			InitializeCommHandler();
 
-			UnityEngine.Profiling.Profiler.EndSample();
+			Profiler.EndSample();
 		}
 
 		// note : this method should work even with a null ProtoVessel
@@ -768,6 +819,12 @@ namespace KERBALISM
 			deviceTransmit = Lib.ConfigValue(node, "deviceTransmit", true);
 
 			scienceTransmitted = Lib.ConfigValue(node, "scienceTransmitted", 0.0);
+
+			vesselSurfaceArea = Lib.ConfigValue(node, "vesselSurfaceArea", -1.0);
+			vesselSolarCrossSection = Lib.ConfigValue(node, "vesselSolarCrossSection", -1.0);
+			vesselBodyCrossSection = Lib.ConfigValue(node, "vesselBodyCrossSection", -1.0);
+			vesselBodyCrossSectionOrbitAvg = Lib.ConfigValue(node, "vesselBodyCrossSectionOrbitAvg", -1.0);
+			vesselEmissivity = Lib.ConfigValue(node, "vesselEmissivity", 0.9);
 
 			stormData = new StormData(node.GetNode("StormData"));
 			habitatInfo = new VesselHabitatInfo(node.GetNode("SunShielding"));
@@ -843,6 +900,13 @@ namespace KERBALISM
 
 			node.AddValue("scienceTransmitted", scienceTransmitted);
 
+			node.AddValue("vesselSurfaceArea", vesselSurfaceArea);
+			node.AddValue("vesselSolarCrossSection", vesselSolarCrossSection);
+			node.AddValue("vesselBodyCrossSection", vesselBodyCrossSection);
+			TryRefreshVesselBodyCrossSectionAvg();
+			node.AddValue("vesselBodyCrossSectionOrbitAvg", vesselBodyCrossSectionOrbitAvg);
+			node.AddValue("vesselEmissivity", vesselEmissivity);
+
 			stormData.Save(node.AddNode("StormData"));
 			computer.Save(node.AddNode("computer"));
 
@@ -897,7 +961,7 @@ namespace KERBALISM
 		#region vessel state evaluation
 		private void EvaluateStatus(double elapsedSeconds)
 		{
-			UnityEngine.Profiling.Profiler.BeginSample("Kerbalism.VesselData.EvaluateStatus");
+			Profiler.BeginSample("EvaluateStatus");
 			// determine if there is enough EC for a powered state
 			powered = Lib.IsPowered(Vessel);
 
@@ -908,9 +972,9 @@ namespace KERBALISM
 			// malfunction stuff
 			if (Features.Reliability)
 			{
-				Profiler.Start("Reliability");
+				Profiler.BeginSample("Reliability");
 				Reliability.GetVesselState(Vessel, out malfunction, out critical);
-				Profiler.Stop("Reliability");
+				Profiler.EndSample();
 			}
 			else
 			{
@@ -922,23 +986,31 @@ namespace KERBALISM
 			CommHandler.UpdateConnection(connection);
 
 			// habitat data
+			Profiler.BeginSample("habitatInfo");
 			habitatInfo.Update(Vessel, this, elapsedSeconds);
+			Profiler.EndSample();
 			evas = (uint)(Settings.LifeSupportAtmoLoss > 0 ? (ResourceCache.GetResource(Vessel, "Nitrogen").Amount - 330) / Settings.LifeSupportAtmoLoss : 0);
+			Profiler.BeginSample("Comforts");
 			comforts = new Comforts(Vessel, EnvLanded, crewCount > 1, connection.linked && connection.rate > double.Epsilon);
+			Profiler.EndSample();
 
 			// data about greenhouses
+			Profiler.BeginSample("Greenhouses");
 			greenhouses = Greenhouse.Greenhouses(Vessel);
+			Profiler.EndSample();
 
+			Profiler.BeginSample("Drive.GetCapacity");
 			Drive.GetCapacity(this, out drivesFreeSpace, out drivesCapacity);
+			Profiler.EndSample();
 
-			UnityEngine.Profiling.Profiler.EndSample();
-		}
+            Profiler.EndSample();
+        }
 		#endregion
 
 		#region environment evaluation
 		private void EvaluateEnvironment(double elapsedSeconds)
 		{
-			UnityEngine.Profiling.Profiler.BeginSample("Kerbalism.VesselData.EvaluateStatus");
+			Profiler.BeginSample("EvaluateEnvironment");
 			// we use analytic mode if more than 2 minutes of game time has passed since last evaluation (~ x6000 timewarp speed)
 			isAnalytic = elapsedSeconds > 120.0;
 
@@ -959,24 +1031,66 @@ namespace KERBALISM
 			inAtmosphere = Vessel.mainBody.atmosphere && Vessel.altitude < Vessel.mainBody.atmosphereDepth;
 			zeroG = !EnvLanded && !inAtmosphere;
 
+			Profiler.BeginSample("GetLargeBodies");
 			visibleBodies = Sim.GetLargeBodies(position);
+			Profiler.EndSample();
 
 			// get solar info (with multiple stars / Kopernicus support)
 			// get the 'visibleBodies' and 'sunsInfo' lists, the 'mainSun', 'solarFluxTotal' variables.
 			// require the situation variables to be evaluated first
-			UnityEngine.Profiling.Profiler.BeginSample("Kerbalism.VesselData.Sunlight");
+			Profiler.BeginSample("Sunlight");
 			SunInfo.UpdateSunsInfo(this, position, elapsedSeconds);
-			UnityEngine.Profiling.Profiler.EndSample();
+			Profiler.EndSample();
 			sunBodyAngle = Sim.SunBodyAngle(Vessel, position, mainSun.SunData.body);
 
 			// temperature at vessel position
-			UnityEngine.Profiling.Profiler.BeginSample("Kerbalism.VesselData.Temperature");
+			Profiler.BeginSample("Temperature");
 			temperature = Sim.Temperature(Vessel, position, solarFluxTotal, out albedoFlux, out bodyFlux, out totalFlux);
 			tempDiff = Sim.TempDiff(EnvTemperature, Vessel.mainBody, EnvLanded);
-			UnityEngine.Profiling.Profiler.EndSample();
+
+			// update thermal geometry cache whenever loaded — occlusion multipliers and drag cube
+			// projections are purely geometric and kept current by KSP regardless of sunlight state
+			if (Vessel.loaded)
+			{
+				// nadir direction: vessel → body center
+				Vector3d bodyDir = (Vessel.mainBody.position - position).normalized;
+				double newArea, newSolarCS, newBodyCS, newEmissivity;
+				if (Sim.UpdateVesselThermalCache(Vessel, mainSun.Direction, bodyDir,
+					out newArea, out newSolarCS, out newBodyCS, out newEmissivity))
+				{
+					vesselSurfaceArea = newArea;
+					vesselSolarCrossSection = newSolarCS;
+					vesselBodyCrossSection = newBodyCS;
+					vesselEmissivity = newEmissivity;
+				}
+			}
+
+			// compute geometry-corrected temperature if we have cached data, otherwise fall back.
+			// Use KSP's GetAtmoThermalStats for body/albedo irradiance: instantaneous, position-correct
+			// for eccentric orbits, and consistent with what KSP's thermal panel reports.
+			double effectiveBodyCS = (Vessel.loaded || vesselBodyCrossSectionOrbitAvg < 0.0 || landed)
+				? vesselBodyCrossSection
+				: vesselBodyCrossSectionOrbitAvg;
+			if (vesselSurfaceArea > 0.0 && vesselSolarCrossSection >= 0.0 && effectiveBodyCS >= 0.0)
+			{
+				double instBodyFlux, instAlbedoFlux;
+				Sim.InstantBodyAlbedoFlux(Vessel.mainBody, mainSun.SunData.body,
+					position, mainSun.Direction, Vessel.altitude,
+					out instBodyFlux, out instAlbedoFlux);
+				vesselTemperature = Sim.TemperatureWithGeometry(
+					Vessel, solarFluxTotal, instAlbedoFlux, instBodyFlux,
+					vesselSolarCrossSection, effectiveBodyCS, vesselSurfaceArea, vesselEmissivity,
+					out absorbedSolarFlux, out absorbedAlbedoFlux, out absorbedBodyFlux, out absorbedTotalFlux);
+			}
+			else
+			{
+				vesselTemperature = temperature;
+				absorbedSolarFlux = absorbedAlbedoFlux = absorbedBodyFlux = absorbedTotalFlux = 0.0;
+			}
+			Profiler.EndSample();
 
 			// radiation
-			UnityEngine.Profiling.Profiler.BeginSample("Kerbalism.VesselData.Radiation");
+			Profiler.BeginSample("Radiation");
 			gammaTransparency = Sim.GammaTransparency(Vessel.mainBody, Vessel.altitude);
 
 			bool new_innerBelt, new_outerBelt, new_magnetosphere;
@@ -989,8 +1103,9 @@ namespace KERBALISM
 				magnetosphere = new_magnetosphere;
 				if(Evaluated) API.OnRadiationFieldChanged.Notify(Vessel, innerBelt, outerBelt, magnetosphere);
 			}
-			UnityEngine.Profiling.Profiler.EndSample();
+			Profiler.EndSample();
 
+			Profiler.BeginSample("StormsNstuff");
 			thermosphere = Sim.InsideThermosphere(Vessel);
 			exosphere = Sim.InsideExosphere(Vessel);
 			inStorm = Storm.InProgress(Vessel);
@@ -1008,7 +1123,19 @@ namespace KERBALISM
 
 			// other stuff
 			gravioli = Sim.Graviolis(Vessel);
-			UnityEngine.Profiling.Profiler.EndSample();
+			Profiler.EndSample();
+			Profiler.EndSample();
+		}
+
+		private void TryRefreshVesselBodyCrossSectionAvg()
+		{
+			if (Vessel != null && Vessel.loaded && !Vessel.Landed && !Vessel.Splashed)
+			{
+				Vector3d pos = Vessel.CoMD;
+				Vector3d orbitNormal = Vector3d.Cross(pos - (Vector3d)Vessel.mainBody.position, Vessel.obt_velocity).normalized;
+				double orbitAvg = Sim.ComputeOrbitAvgBodyCrossSection(Vessel, orbitNormal);
+				if (orbitAvg >= 0.0) vesselBodyCrossSectionOrbitAvg = orbitAvg;
+			}
 		}
 
 		#endregion

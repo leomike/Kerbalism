@@ -568,7 +568,6 @@ namespace KERBALISM
 
 			if (broken)
 			{
-#if (KSP111 || KSP112)
 				if (PreferencesReliability.Instance.requireRepairKits) // REQUIRE REPAIR KIT - Settings Option
 				{
 					int repairKits = 0;
@@ -602,7 +601,7 @@ namespace KERBALISM
 						kerbalEVA.ModuleInventoryPartReference.RemoveNPartsFromInventory("evaRepairKit", 1, true);
 					}
 				}
-#endif
+
 				// flag as not broken
 				broken = false;
 
@@ -834,9 +833,9 @@ namespace KERBALISM
 			return specs;
 		}
 
-        // module info support
-        public string GetModuleTitle() { return Lib.BuildString(title, " ", Local.Reliability_Reliability); }
-        public override string GetModuleDisplayName() { return Lib.BuildString(title, " ",Local.Reliability_Reliability); }//Reliability
+		// module info support
+		public string GetModuleTitle() { return Lib.BuildString(title, " ", Local.Reliability_Reliability); }
+		public override string GetModuleDisplayName() { return Lib.BuildString(title, " ",Local.Reliability_Reliability); }//Reliability
 		public string GetPrimaryField() { return string.Empty; }
 		public Callback<Rect> GetDrawModulePanelCallback() { return null; }
 
@@ -1158,6 +1157,7 @@ namespace KERBALISM
 				}
 			}
 		}
+
 
 		public static string LocalizeRedundancyGroup(string group)
 		{

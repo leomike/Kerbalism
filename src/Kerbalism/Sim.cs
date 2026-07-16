@@ -241,12 +241,12 @@ namespace KERBALISM
 		/// </summary>
 		public static double SampleSunFactor(Vessel v, double elapsedSeconds, CelestialBody sun)
 		{
-			UnityEngine.Profiling.Profiler.BeginSample("Kerbalism.Sim.SunFactor2");
+			Profiler.BeginSample("Sim.SunFactor2");
 
 			bool isSurf = Lib.Landed(v);
 			if (v.orbitDriver == null || v.orbitDriver.orbit == null || (!isSurf && double.IsNaN(v.orbit.inclination)))
 			{
-				UnityEngine.Profiling.Profiler.EndSample();
+				Profiler.EndSample();
 				return 1d; // fail safe
 			}
 
@@ -325,7 +325,7 @@ namespace KERBALISM
 					++sunSamples;
 			}
 
-			UnityEngine.Profiling.Profiler.EndSample();
+			Profiler.EndSample();
 
 			double sunFactor = (double)sunSamples / (double)sampleCount;
 			//Lib.Log("Vessel " + v + " sun factor: " + sunFactor + " " + sunSamples + "/" + sampleCount + " #s=" + sampleCount + " e=" + elapsedSeconds + " step=" + stepLength);
@@ -457,6 +457,12 @@ namespace KERBALISM
 		/// <param name="endNegOffset">distance from which the ray will stop before hitting the 'end' point, put the body radius here if the end point is a CB</param>
 		public static bool RaytracePhysic(Vessel vessel, Vector3d vesselPos, Vector3d end, double endNegOffset = 0.0)
 		{
+			return RaytracePhysic(vessel, vesselPos, end, endNegOffset, null);
+		}
+
+		/// <summary>Return true if there is no CelestialBody between the vessel position and the 'end' point. Hits on <paramref name="ignoreBody"/> are treated as reaching the ray target.</summary>
+		public static bool RaytracePhysic(Vessel vessel, Vector3d vesselPos, Vector3d end, double endNegOffset, CelestialBody ignoreBody)
+		{
 			// for unloaded vessels, position in scaledSpace is 1 fixedUpdate frame desynchronized :
 			if (!vessel.loaded)
 				vesselPos += vessel.mainBody.position - vessel.mainBody.getTruePositionAtUT(Planetarium.GetUniversalTime() + TimeWarp.fixedDeltaTime);
@@ -465,9 +471,39 @@ namespace KERBALISM
 			ScaledSpace.LocalToScaledSpace(ref vesselPos);
 			ScaledSpace.LocalToScaledSpace(ref end);
 			Vector3d dir = end - vesselPos;
-			if (endNegOffset > 0) dir -= dir.normalized * (endNegOffset * ScaledSpace.InverseScaleFactor);
 
-			return !Physics.Raycast(vesselPos, dir, (float)dir.magnitude, planetaryLayerMask);
+			if (endNegOffset > 0.0)
+				dir -= dir.normalized * (endNegOffset * ScaledSpace.InverseScaleFactor);
+
+			float maxDist = (float)dir.magnitude;
+			if (maxDist <= 0f)
+				return true;
+
+			if (!Physics.Raycast(vesselPos, dir, out RaycastHit hit, maxDist, planetaryLayerMask))
+				return true;
+
+			// Hitting the target body itself means the line of sight reached it - not occlusion.
+			if (ignoreBody != null && IsScaledBodyCollider(hit.collider, ignoreBody))
+				return true;
+
+			return false;
+		}
+
+		/// <summary>True if <paramref name="col"/> belongs to <paramref name="body"/>'s scaled-space hierarchy.</summary>
+		static bool IsScaledBodyCollider(Collider col, CelestialBody body)
+		{
+			if (col == null || body == null || body.scaledBody == null)
+				return false;
+
+			Transform root = body.scaledBody.transform;
+			Transform t = col.transform;
+			while (t != null)
+			{
+				if (t == root)
+					return true;
+				t = t.parent;
+			}
+			return false;
 		}
 
 		/// <summary> return true if the ray 'dir' starting at 'start' and of length 'dist' doesn't hit 'body'</summary>
@@ -503,8 +539,10 @@ namespace KERBALISM
 
 			// for very small bodies the analytic method is very unreliable at high latitudes
 			// we use a physic raycast (a lot slower)
+			// Pass body as ignoreBody: the ray targets that CB (usually a sun/star); hitting its
+			// own scaled mesh must not count as occlusion (#1053).
 			if (Lib.Landed(vessel) && vessel.mainBody.Radius < 100000.0 && (vessel.latitude < -45.0 || vessel.latitude > 45.0))
-				return RaytracePhysic(vessel, vesselPos, body.position, body.Radius);
+				return RaytracePhysic(vessel, vesselPos, body.position, body.Radius, body);
 
 			// check if the ray intersect one of the provided bodies
 			foreach (CelestialBody occludingBody in occludingBodies)
@@ -960,6 +998,322 @@ namespace KERBALISM
 			return temp;
 		}
 
+		// Estimates the orbit-averaged effective body cross-section (m²) for a loaded vessel.
+		// Method: uniform angular quadrature over the orbit plane.
+		//   The nadir direction traces a full circle in the plane perpendicular to the orbit
+		//   normal as the vessel completes one orbit.  N=16 equally-spaced azimuths are sampled
+		//   and averaged (rectangle / midpoint rule).  Because the cross-section is a smooth
+		//   periodic function of azimuth, the rectangle rule converges spectrally — 16 samples
+		//   is more than sufficient for the part counts found in practice.
+		//
+		// Returns -1.0 if the vessel is not loaded (drag-cube data unavailable).
+		public static double ComputeOrbitAvgBodyCrossSection(Vessel v, Vector3d orbitNormal)
+		{
+			if (!v.loaded) return -1.0;
+
+			List<Part> parts = v.Parts;
+			int n = parts.Count;
+			if (n == 0) return 0.0;
+
+			UnityEngine.Profiling.Profiler.BeginSample("ComputeOrbitAvgBodyCrossSection");
+
+			Vector3 on = (Vector3)orbitNormal;
+			// Smallest-component trick: cross with the axis least parallel to 'on'
+			// to guarantee a non-degenerate perpendicular for any orbit inclination.
+			Vector3 perp1 = Perpendicular(on).normalized;
+			Vector3 perp2 = Vector3.Cross(on, perp1);  // completes right-hand basis in the orbital plane
+
+			// Scratch buffers allocated once and reused across all N direction samples.
+			int[]     sortIdx   = new int[n];
+			Vector3[] positions = new Vector3[n];
+			float[]   depths    = new float[n];
+			float[]   areas     = new float[n];
+			float[]   radii     = new float[n];
+			float[]   absorbs   = new float[n];
+			Vector3[] occPos    = new Vector3[n];
+			float[]   occRad    = new float[n];
+
+			const int N = 16;
+			float acc = 0f;
+			for (int k = 0; k < N; k++)
+			{
+				float angle = k * (2f * Mathf.PI / N);
+				acc += SampleOccludedBodyCS(Mathf.Cos(angle) * perp1 + Mathf.Sin(angle) * perp2);
+			}
+
+			UnityEngine.Profiling.Profiler.EndSample();
+			return acc / N;
+
+			// Returns a vector perpendicular to u by crossing u with the coordinate axis
+			// most orthogonal to it (the one with the smallest absolute component).
+			// This avoids the near-zero result that would occur if u were nearly parallel
+			// to the chosen axis.
+			Vector3 Perpendicular(Vector3 u)
+			{
+				float ax = Mathf.Abs(u.x), ay = Mathf.Abs(u.y), az = Mathf.Abs(u.z);
+				if (ax <= ay && ax <= az) return new Vector3(0f, -u.z, u.y);
+				if (ay <= az) return new Vector3(-u.z, 0f, u.x);
+				return new Vector3(-u.y, u.x, 0f);
+			}
+
+			// Computes the effective absorbing cross-section for a single nadir direction.
+			// Parts are processed from body-side outward. Each unoccluded part is added to
+			// a sparse occluder list; later (shallower) parts only check against that list
+			// instead of all n parts, giving sub-O(n²) behaviour for typical vessel shapes.
+			// Fully-occluded parts (bMult ≤ 0.001) are excluded from the occluder list,
+			// which also prevents double-counting their shadow through an upstream occluder.
+			float SampleOccludedBodyCS(Vector3 worldDir)
+			{
+				// Pass 1: collect valid parts into compact arrays.
+				int m = 0;
+				for (int i = 0; i < n; i++)
+				{
+					Part pi = parts[i];
+					if (pi.DragCubes.None || pi.ptd == null) continue;
+					float absorb = (float)pi.absorptiveConstant;
+					if (absorb <= 0f) continue;
+					Vector3 localDir = Quaternion.Inverse(pi.partTransform.rotation) * worldDir;
+					float area = GetAreaInDir(localDir, pi.DragCubes.AreaOccluded);
+					if (area <= 0f) continue;
+
+					positions[m] = pi.partTransform.position;
+					depths[m]    = Vector3.Dot(positions[m], worldDir);
+					areas[m]     = area;
+					radii[m]     = Mathf.Sqrt(area / Mathf.PI);
+					absorbs[m]   = absorb;
+					sortIdx[m]   = m;
+					m++;
+				}
+
+				// Pass 2: insertion sort by depth descending (body-side parts first).
+				// Allocation-free; efficient for the typical n < 100.
+				for (int s = 1; s < m; s++)
+				{
+					int key = sortIdx[s];
+					float kd = depths[key];
+					int t = s - 1;
+					while (t >= 0 && depths[sortIdx[t]] < kd)
+					{
+						sortIdx[t + 1] = sortIdx[t];
+						t--;
+					}
+					sortIdx[t + 1] = key;
+				}
+
+				// Pass 3: sweep body-side outward; maintain a sparse list of unoccluded
+				// parts that can shadow the parts above them.
+				int occCount = 0;
+				float total = 0f;
+
+				for (int si = 0; si < m; si++)
+				{
+					int i = sortIdx[si];
+					float bMult = 1f;
+
+					for (int oj = 0; oj < occCount; oj++)
+					{
+						// relPos points from part i toward occluder oj.
+						// depth > 0 iff the occluder is body-side of i (guard against
+						// same-depth radially-attached parts).
+						Vector3 relPos = occPos[oj] - positions[i];
+						float depth = Vector3.Dot(relPos, worldDir);
+						if (depth <= 0f) continue;
+
+						Vector3 perpOffset = relPos - depth * worldDir;
+						bMult -= CircleOverlapFraction(radii[i], occRad[oj], perpOffset.sqrMagnitude);
+						if (bMult <= 0f)
+						{
+							bMult = 0f;
+							break;
+						}
+					}
+
+					total += areas[i] * bMult * absorbs[i];
+
+					if (bMult > 0.001f)
+					{
+						occPos[occCount] = positions[i];
+						occRad[occCount] = radii[i];
+						occCount++;
+					}
+				}
+
+				return total;
+			}
+
+			// Drag-cube projected-area lookup: mirrors KSP's FlightIntegrator.GetBodyArea().
+			// oc[0..5] = AreaOccluded for the +X, -X, +Y, -Y, +Z, -Z drag-cube faces.
+			// Only faces whose outward normal has a positive dot product with localDir contribute,
+			// weighted by that dot product — a piecewise-linear hemisphere integral.
+			float GetAreaInDir(Vector3 localDir, float[] oc)
+			{
+				return Mathf.Max(0f, localDir.x) * oc[0] + Mathf.Max(0f, -localDir.x) * oc[1]
+					 + Mathf.Max(0f, localDir.y) * oc[2] + Mathf.Max(0f, -localDir.y) * oc[3]
+					 + Mathf.Max(0f, localDir.z) * oc[4] + Mathf.Max(0f, -localDir.z) * oc[5];
+			}
+
+			// Returns the fraction of circle I's area covered by circle J (value in [0, 1]).
+			//
+			// Uses the standard two-circle lens-area formula:
+			//   alpha = half-angle subtended at centre I by the common chord  (law of cosines)
+			//   beta  = half-angle subtended at centre J
+			//   lens area = rI²·alpha + rJ²·beta − ½·sqrt(Q)
+			//
+			// Q = (−d+rI+rJ)(d+rI−rJ)(d−rI+rJ)(d+rI+rJ) is Heron's formula in expanded form
+			// for the triangle with sides d, rI, rJ (the two circle centres + one intersection
+			// point): Q = 16·T², so sqrt(Q)/2 = 2T = area of the kite formed by both centres
+			// and both intersection points. This factored form is numerically stable near the
+			// boundary cases (circles barely touching or nearly contained).
+			// Reference: Weisstein, "Circle-Circle Intersection," MathWorld.
+			float CircleOverlapFraction(float rI, float rJ, float sqrDist)
+			{
+				float sumR = rI + rJ;
+				if (sqrDist >= sumR * sumR) return 0f;            // circles are disjoint
+				float dist = Mathf.Sqrt(sqrDist);
+				if (rJ >= rI + dist) return 1f;                   // J fully contains I
+				if (rI >= rJ + dist) return rJ * rJ / (rI * rI);  // I fully contains J; visible fraction = (rJ/rI)²
+				if (dist < 1e-5f) return rJ >= rI ? 1f : rJ * rJ / (rI * rI);
+				float rI2 = rI * rI, rJ2 = rJ * rJ, d2 = sqrDist;
+				float alpha = Mathf.Acos(Mathf.Clamp((d2 + rI2 - rJ2) / (2f * dist * rI), -1f, 1f));
+				float beta  = Mathf.Acos(Mathf.Clamp((d2 + rJ2 - rI2) / (2f * dist * rJ), -1f, 1f));
+				float lensArea = rI2 * alpha + rJ2 * beta
+					- 0.5f * Mathf.Sqrt(Mathf.Max(0f, (-dist + sumR) * (dist + rI - rJ) * (dist - rI + rJ) * (dist + sumR)));
+				return Mathf.Clamp(lensArea / (Mathf.PI * rI2), 0f, 1f);
+			}
+		}
+
+		// Update cached thermal geometry data from loaded part data.
+		// sunWorldDirection: normalized world-space vessel→sun unit vector.
+		// bodyWorldDirection: normalized world-space vessel→body (nadir) unit vector.
+		// Returns false and leaves out-params at their defaults if data can't be computed.
+		//
+		// Cross-sections mirror FlightIntegrator.GetSunArea() / GetBodyArea():
+		//   DragCubes.GetCubeAreaDir(dirLocal) — directional projected area from drag cube
+		//   × ptd.sunAreaMultiplier / bodyAreaMultiplier — inter-part occlusion factor (0–1)
+		//   × part.absorptiveConstant — fraction of incident radiation absorbed
+		//
+		// Surface area uses part.radiativeArea = DragCubes.PostOcclusionArea (sum of all 6
+		// occluded face areas), matching KSP's radiation exchange calculations.
+		public static bool UpdateVesselThermalCache(Vessel v, Vector3d sunWorldDirection, Vector3d bodyWorldDirection,
+			out double surfaceArea, out double solarCrossSection, out double bodyCrossSection, out double emissivity)
+		{
+			surfaceArea = 0.0;
+			solarCrossSection = 0.0;
+			bodyCrossSection = 0.0;
+			emissivity = 0.9;
+
+			if (!v.loaded)
+				return false;
+
+			double emissivityWeighted = 0.0;
+
+			UnityEngine.Profiling.Profiler.BeginSample("Kerbalism.Sim.UpdateVesselThermalCache");
+			foreach (Part p in v.Parts)
+			{
+				double area = p.radiativeArea;
+				if (area <= 0.0)
+					continue;
+
+				surfaceArea += area;
+				emissivityWeighted += p.emissiveConstant * area;
+
+				if (!p.DragCubes.None && p.ptd != null)
+				{
+					Vector3 sunDirLocal  = p.partTransform.InverseTransformDirection((Vector3)sunWorldDirection);
+					Vector3 bodyDirLocal = p.partTransform.InverseTransformDirection((Vector3)bodyWorldDirection);
+					solarCrossSection += p.DragCubes.GetCubeAreaDir(sunDirLocal)  * p.ptd.sunAreaMultiplier  * p.absorptiveConstant;
+					bodyCrossSection  += p.DragCubes.GetCubeAreaDir(bodyDirLocal) * p.ptd.bodyAreaMultiplier * p.absorptiveConstant;
+				}
+			}
+			UnityEngine.Profiling.Profiler.EndSample();
+
+			if (surfaceArea <= 0.0)
+				return false;
+
+			emissivity = emissivityWeighted / surfaceArea;
+			return true;
+		}
+
+		// Calculate vessel equilibrium temperature using cached geometry data.
+		// solar_cross_section: absorptivity-weighted cross-section toward the sun (m²).
+		// body_cross_section:  absorptivity-weighted cross-section toward the body/nadir (m²).
+		// surface_area:        total radiative surface area (m²).
+		// emissivity:          flux-weighted average part emissivity.
+		// All four come from UpdateVesselThermalCache.
+		//
+		// Solar flux uses the sun-facing cross-section.
+		// Albedo and body IR use the nadir-facing cross-section (both arrive from below).
+		// Background thermal radiation drives the equilibrium temperature toward ambient.
+		// In atmosphere we use the actual atmospheric temperature: dense air acts as a near-field
+		// blackbody enclosure at atmospheric temperature, consistent with convective equilibration.
+		// In vacuum we fall back to SpaceTemperature (~4K, CMB equivalent).
+		public static double TemperatureWithGeometry(Vessel v, double solar_flux, double albedo_flux,
+			double body_flux, double solar_cross_section, double body_cross_section, double surface_area, double emissivity,
+			out double solar_absorbed_W, out double albedo_absorbed_W, out double body_absorbed_W,
+			out double total_absorbed_W)
+		{
+			solar_absorbed_W  = solar_flux  * solar_cross_section;
+			albedo_absorbed_W = albedo_flux * body_cross_section;
+			body_absorbed_W   = body_flux   * body_cross_section;
+			total_absorbed_W  = solar_absorbed_W + albedo_absorbed_W + body_absorbed_W;
+
+			CelestialBody body = v.mainBody;
+			double backgroundTemp = (body.atmosphere && v.altitude < body.atmosphereDepth)
+				? body.GetTemperature(v.altitude)
+				: PhysicsGlobals.SpaceTemperature;
+			double backgroundAbsorbed = emissivity * PhysicsGlobals.StefanBoltzmanConstant
+				* Math.Pow(backgroundTemp, 4) * surface_area;
+
+			return Math.Pow(
+				(total_absorbed_W + backgroundAbsorbed) / (emissivity * PhysicsGlobals.StefanBoltzmanConstant * surface_area),
+				0.25);
+		}
+
+		// Return instantaneous body-emissive and albedo irradiance in W/m² at the vessel's position.
+		// Delegates to CelestialBody.GetAtmoThermalStats so values are position-correct for eccentric
+		// orbits and consistent with KSP's thermal model, without requiring a loaded vessel.
+		// Returns pre-absorptivity irradiance; the caller's cross-section handles absorptivity.
+		public static void InstantBodyAlbedoFlux(CelestialBody body, CelestialBody sunBody,
+			Vector3d position, Vector3d sunDirection, double altitude,
+			out double bodyEmissive, out double bodyAlbedo)
+		{
+			if (Lib.IsSun(body))
+			{
+				bodyEmissive = 0.0;
+				bodyAlbedo = 0.0;
+				return;
+			}
+			Vector3d upAxis = (position - body.position).normalized;
+			double sunDot = Vector3d.Dot(sunDirection, upAxis);
+			body.GetAtmoThermalStats(
+				true,
+				sunBody,
+				sunDirection,
+				sunDot,
+				upAxis,
+				altitude,
+				out _,
+				out bodyEmissive,
+				out bodyAlbedo);
+
+			// body/albedo radiation is progressively suppressed by atmospheric density (dense air = convection dominates)
+			if (body.atmosphere && altitude < body.atmosphereDepth)
+			{
+				double density = body.GetDensity(body.GetPressure(altitude), body.GetTemperature(altitude));
+				double lerp = CalculateDensityThermalLerp(density);
+				bodyEmissive *= lerp;
+				bodyAlbedo *= lerp;
+			}
+		}
+
+		// mirrors FlightIntegrator.CalculateDensityThermalLerp but omits Mach effects
+		private static double CalculateDensityThermalLerp(double density)
+		{
+			if (density < 0.0625) return 1.0 - Math.Sqrt(Math.Sqrt(density));
+			if (density < 0.25)   return 0.75 - Math.Sqrt(density);
+			return 0.0625 / density;
+		}
+
 		// return difference from survival temperature
 		// - as a special case, there is no temp difference when landed on the home body
 		public static double TempDiff(double k, CelestialBody body, bool landed)
@@ -1152,12 +1506,17 @@ namespace KERBALISM
 		#endregion
 
 		#region SIGNAL
+		// Fallback used when auto-calc fails (DSN cannot reach 2 AU, etc). Matches pre-comms-refactor stock ~6.
+		private const double DefaultDataRateDampingExponent = 6.0;
+		private const double DefaultDataRateDampingExponentRT = 2.4;
+
 		private static double dampingExponent = 0;
 		public static double DataRateDampingExponent
 		{
 			get
 			{
-				if (dampingExponent != 0)
+				// NaN != 0 is true, so explicitly reject a cached failed calculation
+				if (dampingExponent != 0 && !double.IsNaN(dampingExponent) && !double.IsInfinity(dampingExponent))
 					return dampingExponent;
 
 				if (Settings.DampingExponentOverride != 0)
@@ -1203,12 +1562,23 @@ namespace KERBALISM
 				// Value selected so we match pre-comms refactor damping exponent of ~6 in stock
 				var desiredRateAt2AU = 0.3925;
 
-				// dataRate = baseRate * (strengthAt2AU ^ exponent)
-				// so...
-				// exponent = log_strengthAt2AU(dataRate / baseRate)
-				dampingExponent = Math.Log(desiredRateAt2AU / baseRate, strengthAt2AU);
+				// Math.Log(x, base) requires base in (0, 1) U (1, +inf). strengthAt2AU is in [0, 1];
+				// when DSN cannot reach 2 AU, strength is 0 and Log -> NaN (see #1031, also #721).
+				bool canCalculateExponent = strengthAt2AU > 0.0 && strengthAt2AU < 1.0;
+				if (canCalculateExponent)
+					dampingExponent = Math.Log(desiredRateAt2AU / baseRate, strengthAt2AU);
+				else
+					dampingExponent = DefaultDataRateDampingExponent;
 
-				Lib.Log($"Calculated DataRateDampingExponent: {dampingExponent.ToString("F4")} (max. DSN range: {maxDsnRange.ToString("F0")}, strength at 2 AU: {strengthAt2AU.ToString("F3")})");
+				if (!canCalculateExponent || double.IsNaN(dampingExponent) || double.IsInfinity(dampingExponent) || dampingExponent <= 0.0)
+				{
+					Lib.Log($"DataRateDampingExponent calc failed (max. DSN range: {maxDsnRange.ToString("F0")}, strength at 2 AU: {strengthAt2AU.ToString("F3")}), using fallback {DefaultDataRateDampingExponent}");
+					dampingExponent = DefaultDataRateDampingExponent;
+				}
+				else
+				{
+					Lib.Log($"Calculated DataRateDampingExponent: {dampingExponent.ToString("F4")} (max. DSN range: {maxDsnRange.ToString("F0")}, strength at 2 AU: {strengthAt2AU.ToString("F3")})");
+				}
 
 				return dampingExponent;
 			}
@@ -1218,7 +1588,7 @@ namespace KERBALISM
 		{
 			get
 			{
-				if (dampingExponent != 0)
+				if (dampingExponent != 0 && !double.IsNaN(dampingExponent) && !double.IsInfinity(dampingExponent))
 					return dampingExponent;
 
 				if (Settings.DampingExponentOverride != 0)
@@ -1262,16 +1632,20 @@ namespace KERBALISM
 				// dataRate = baseRate * (strengthAt2AU ^ exponent)
 				// so...
 				// exponent = log_strengthAt2AU(dataRate / baseRate)
-				dampingExponent = Math.Log(desiredRateAt2AU / baseRate, strengthAt2AU);
+				bool canCalculateExponent = strengthAt2AU > 0.0 && strengthAt2AU < 1.0;
+				if (canCalculateExponent)
+					dampingExponent = Math.Log(desiredRateAt2AU / baseRate, strengthAt2AU);
+				else
+					dampingExponent = DefaultDataRateDampingExponentRT;
 
-				// 2.4 seems good for RemoteTech
-				if (double.IsNaN(dampingExponent))
+				// 2.4 seems good for RemoteTech (#914); same failure mode as CommNet (#1031)
+				if (!canCalculateExponent || double.IsNaN(dampingExponent) || double.IsInfinity(dampingExponent) || dampingExponent <= 0.0)
 				{
-					Lib.Log("dampingExponent is " + dampingExponent + ",... setting to 2.4");
-					dampingExponent = 2.4;
+					Lib.Log($"DataRateDampingExponentRT calc failed (strength at 2.53 AU: {strengthAt2AU.ToString("F3")}), using fallback {DefaultDataRateDampingExponentRT}");
+					dampingExponent = DefaultDataRateDampingExponentRT;
 				}
 
-				return DataRateDampingExponent;
+				return dampingExponent;
 			}
 		}
 
