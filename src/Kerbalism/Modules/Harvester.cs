@@ -59,7 +59,7 @@ namespace KERBALISM
 			// in editor, merely update ui button label
 			if (Lib.IsEditor())
 			{
-				Events["Toggle"].guiName = Lib.StatusToggle(title, running ? Local.Harvester_running : Local.Harvester_stopped);//"running""stopped"
+				Events["Toggle"].guiName = Lib.StatusToggle(Localizer.Format(title), running ? Local.Harvester_running : Local.Harvester_stopped);//"running""stopped"
 			}
 
 			// if in flight, and the stock planet resource system is online
@@ -84,7 +84,7 @@ namespace KERBALISM
 								? Local.Harvester_running//"running"
 								: Lib.BuildString("<color=yellow>", issue, "</color>");
 
-						Events["Toggle"].guiName = Lib.StatusToggle(title, status);
+						Events["Toggle"].guiName = Lib.StatusToggle(Localizer.Format(title), status);
 						Abundance = abundance > double.Epsilon ? Lib.HumanReadablePerc(abundance, "F2") : Local.Harvester_none;//"none"
 					}
 				}
@@ -237,17 +237,29 @@ namespace KERBALISM
 				case 2: source = Local.Harvester_source3; break;//"the atmosphere"
 				case 3: source = Local.Harvester_source4; break;//"space"
 			}
-			string desc = Local.Harvester_generatedescription.Format(resource,source);//Lib.BuildString("Extract ", , " from ", )
+			string desc = Local.Harvester_generatedescription.Format(Lib.GetResourceDisplayName(resource), source);
 
 			// generate tooltip info
 			return Specs().Info(desc);
+		}
+
+		static string LocalizeHarvestType(int harvestType)
+		{
+			switch (harvestType)
+			{
+				case 0: return Local.Harvester_type0; // Planetary
+				case 1: return Local.Harvester_type1; // Oceanic
+				case 2: return Local.Harvester_type2; // Atmospheric
+				case 3: return Local.Harvester_type3; // Exospheric
+				default: return ((HarvestTypes)harvestType).ToString();
+			}
 		}
 
 		// specifics support
 		public Specifics Specs()
 		{
 			Specifics specs = new Specifics();
-			specs.Add(Local.Harvester_info1, ((HarvestTypes)type).ToString());//"type"
+			specs.Add(Local.Harvester_info1, LocalizeHarvestType(type));//"type"
 			specs.Add(Local.Harvester_info2, Lib.GetResourceDisplayName(resource));//"resource"
 			if (min_abundance > double.Epsilon) specs.Add(Local.Harvester_info3, Lib.HumanReadablePerc(min_abundance, "F2"));//"min abundance"
 			if (type == 2 && min_pressure > double.Epsilon) specs.Add(Local.Harvester_info4, Lib.HumanReadablePressure(min_pressure));//"min pressure"
@@ -265,8 +277,8 @@ namespace KERBALISM
 		public bool IsSituationValid() { return true; }
 
 		// module info support
-		public string GetModuleTitle() { return title; }
-		public override string GetModuleDisplayName() { return title; }
+		public string GetModuleTitle() { return Localizer.Format(title); }
+		public override string GetModuleDisplayName() { return Localizer.Format(title); }
 		public string GetPrimaryField() { return string.Empty; }
 		public Callback<Rect> GetDrawModulePanelCallback() { return null; }
 

@@ -65,11 +65,13 @@ namespace KERBALISM
 			return Specs().Info();
 		}
 
+		public override string GetModuleDisplayName() { return Local.Module_Sensor; }//"Sensor"
+
 		// specifics support
 		public Specifics Specs()
 		{
 			var specs = new Specifics();
-			specs.Add(Local.Sensor_Type, type);//"Type"
+			specs.Add(Local.Sensor_Type, DisplayName(type));//"Type"
 			return specs;
 		}
 
@@ -79,9 +81,11 @@ namespace KERBALISM
 			switch (type)
 			{
 				case "temperature": return Local.Planner_temperature;
+				case "vessel_temperature": return Local.Sensor_vessel_temperature;
 				case "radiation": return Local.TELEMETRY_radiation;
 				case "habitat_radiation": return Local.TELEMETRY_habitatradiation;
 				case "pressure": return Local.TELEMETRY_pressure;
+				case "gravioli": return Local.Sensor_gravioli;
 			}
 			return Lib.SpacesOnCaps(Lib.SpacesOnUnderscore(type));
 		}
