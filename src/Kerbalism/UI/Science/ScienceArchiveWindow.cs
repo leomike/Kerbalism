@@ -41,6 +41,7 @@ namespace KERBALISM
 			{
 				foreach (ExperimentSubjectList.BodyContainer body in exp.ToggleId.experimentSubjectList.BodyContainers)
 				{
+					body.ToggleBody(false);
 					body.SubjectsContainer.DestroyUIObjects();
 				}
 			}
