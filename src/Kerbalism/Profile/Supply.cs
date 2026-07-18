@@ -98,7 +98,7 @@ namespace KERBALISM
 			double quantity = on_pod * (double)prefab.CrewCapacity;
 
 			// add the resource
-			Lib.AddResource(prefab, resource, empty ? 0.0 : quantity, quantity);
+			Lib.AddResource(prefab, resource, empty ? 0.0 : quantity, quantity, true);
 
 			// add resource cost
 			p.cost += (float)(Lib.GetDefinition(resource).unitCost * (empty ? 0.0 : quantity));

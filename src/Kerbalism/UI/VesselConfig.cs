@@ -53,7 +53,7 @@ namespace KERBALISM
 				p.AddContent(Local.VESSELCONFIG_supply, string.Empty, tooltip);//"supply"
 				p.AddRightIcon(vd.cfg_supply ? Textures.toggle_green : Textures.toggle_red, tooltip, () => p.Toggle(ref vd.cfg_supply));
 			}
-			if (API.Comm.handlers.Count > 0 || HighLogic.fetch.currentGame.Parameters.Difficulty.EnableCommNet)
+			if (API.Comm.handlers.Count > 0 || RemoteTech.Installed || HighLogic.fetch.currentGame.Parameters.Difficulty.EnableCommNet)
 			{
 				tooltip = Local.VESSELCONFIG_Signallost;//"Receive a message when signal is lost or obtained"
 				p.AddContent(Local.VESSELCONFIG_signal, string.Empty, tooltip);//"signal"

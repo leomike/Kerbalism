@@ -521,7 +521,15 @@ namespace KERBALISM
 				}
 			}
 
-			trackedSunInfo = vd.EnvSunsInfo.Find(p => p.SunData.bodyIndex == trackedSunIndex);
+			trackedSunInfo = null;
+			for (int i = 0; i < vd.EnvSunsInfo.Count; i++)
+			{
+				if (vd.EnvSunsInfo[i].SunData.bodyIndex == trackedSunIndex)
+				{
+					trackedSunInfo = vd.EnvSunsInfo[i];
+					break;
+				}
+			}
 			if (trackedSunInfo == null && vd.EnvSunsInfo.Count > 0)
 				trackedSunInfo = vd.EnvSunsInfo[0];
 
@@ -610,7 +618,7 @@ namespace KERBALISM
 			}
 
 			wearFactor = 1.0;
-			if (timeEfficCurve?.Curve.keys.Length > 1)
+			if (timeEfficCurve?.Curve.length > 1)
 				wearFactor = Lib.Clamp(timeEfficCurve.Evaluate((float)((Planetarium.GetUniversalTime() - launchUT) / 3600.0)), 0.0, 1.0);
 
 			currentOutput = nominalRate * wearFactor * powerFactor;
@@ -680,7 +688,15 @@ namespace KERBALISM
 			bool manualTracking = Lib.Proto.GetBool(m, "manualTracking");
 			bool isTracking = prefab.SolarPanel.IsTracking;
 
-			VesselData.SunInfo trackedSunInfo = vd.EnvSunsInfo.Find(s => s.SunData.bodyIndex == trackedSunIndex);
+			VesselData.SunInfo trackedSunInfo = null;
+			for (int i = 0; i < vd.EnvSunsInfo.Count; i++)
+			{
+				if (vd.EnvSunsInfo[i].SunData.bodyIndex == trackedSunIndex)
+				{
+					trackedSunInfo = vd.EnvSunsInfo[i];
+					break;
+				}
+			}
 
 			// Auto-tracking logic for background/analytic mode
 			if (!manualTracking && isTracking && vd.EnvSunsInfo.Count > 0)
@@ -1127,6 +1143,23 @@ namespace KERBALISM
 			/// <summary>Type of the panel</summary>
 			public virtual ModuleDeployableSolarPanel.PanelType Type => ModuleDeployableSolarPanel.PanelType.FLAT;
 
+			/// <summary>
+			/// Peak cosine/exposure factor for planner nominal estimates.
+			/// SPHERICAL is fixed at 0.25; CYLINDRICAL peaks at 1/π; FLAT peaks at 1.
+			/// </summary>
+			public virtual double GetMaxCosineFactor()
+			{
+				switch (Type)
+				{
+					case ModuleDeployableSolarPanel.PanelType.SPHERICAL:
+						return 0.25;
+					case ModuleDeployableSolarPanel.PanelType.CYLINDRICAL:
+						return 1.0 / Math.PI;
+					default:
+						return 1.0;
+				}
+			}
+
 			/// <summary>Kopernicus stars support : must set the animation tracked body</summary>
 			public virtual void SetTrackedBody(CelestialBody body) { }
 
@@ -1200,7 +1233,7 @@ namespace KERBALISM
 		// - we still reuse most of the stock calculations
 		// - we let the module fixedupdate/update handle animations/suncatching
 		// - we prevent stock EC generation by reseting the reshandler rate
-		// - we don't support cylindrical/spherical panel types
+		// - FLAT / CYLINDRICAL / SPHERICAL panel types are supported via GetCosineFactor
 		private class StockPanel : SupportedPanel<ModuleDeployableSolarPanel>
 		{
 			private Transform sunCatcherPosition;   // middle point of the panel surface (usually). Use only position, panel surface direction depend on the pivot transform, even for static panels.
@@ -1254,7 +1287,7 @@ namespace KERBALISM
 			public override FloatCurve GetTimeCurve()
 			{
 
-				if (panelModule.timeEfficCurve?.Curve.keys.Length > 1)
+				if (panelModule.timeEfficCurve?.Curve.length > 1)
 				{
 					FloatCurve timeCurve = new FloatCurve();
 					foreach (Keyframe key in panelModule.timeEfficCurve.Curve.keys)
@@ -1328,6 +1361,9 @@ namespace KERBALISM
 							return Math.Max(Vector3d.Dot(sunDir, sunCatcherPivot.forward), 0.0);
 
 					case ModuleDeployableSolarPanel.PanelType.CYLINDRICAL:
+						// An orientable cylindrical panel can reach peak exposure when the sun is perpendicular to its axis
+						if (analytic && panelModule.isTracking)
+							return 1.0 / Math.PI;
 						if (panelModule.trackingDotTransform == null)
 							return 0.0;
 						return Math.Max((1.0 - Math.Abs(Vector3d.Dot(sunDir, panelModule.trackingDotTransform.forward))) * (1.0 / Math.PI), 0.0);

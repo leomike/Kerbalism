@@ -93,7 +93,7 @@ namespace KERBALISM.KsmGui
 			tooltip.SetTooltipText(text);
 		}
 
-		/// <summary> Add sizing constraints trough a LayoutElement component</summary>
+		/// <summary> Add sizing constraints through a LayoutElement component</summary>
 		public void SetLayoutElement(bool flexibleWidth = false, bool flexibleHeight = false, int preferredWidth = -1, int preferredHeight = -1, int minWidth = -1, int minHeight = -1)
 		{
 			if (LayoutElement == null)

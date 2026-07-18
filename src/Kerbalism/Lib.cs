@@ -603,7 +603,7 @@ namespace KERBALISM
 			}
 		}
 
-		///<summary>return the unity Colot  for kerbalism Kolors</summary>
+		///<summary>return the unity Color for kerbalism Kolors</summary>
 		public static Color KolorToColor(Kolor color)
 		{
 			switch (color)
@@ -1040,32 +1040,32 @@ namespace KERBALISM
 				if (d < 60.0)
 				{
 					ulong seconds = duration_seconds % 60ul;
-					return BuildString(seconds.ToString(), "s");
+					return BuildString(seconds.ToString(), Local.Generic_Seconds);
 				}
 				// minutes + seconds
 				if (d < 3600.0)
 				{
 					ulong seconds = duration_seconds % 60ul;
 					ulong minutes = (duration_seconds / 60ul) % 60ul;
-					return BuildString(minutes.ToString(), "m ", seconds.ToString("00"), "s");
+					return BuildString(minutes.ToString(), Local.Generic_Minutes, " ", seconds.ToString("00"), Local.Generic_Seconds);
 				}
 				// hours + minutes
 				if (d < 3600.0 * HoursInDay)
 				{
 					ulong minutes = (duration_seconds / 60ul) % 60ul;
 					ulong hours = (duration_seconds / 3600ul) % hours_in_day;
-					return BuildString(hours.ToString(), "h ", minutes.ToString("00"), "m");
+					return BuildString(hours.ToString(), Local.Generic_Hours, " ", minutes.ToString("00"), Local.Generic_Minutes);
 				}
 				ulong days = (duration_seconds / (3600ul * hours_in_day)) % days_in_year;
 				// days + hours
 				if (d < 3600.0 * HoursInDay * DaysInYear)
 				{
 					ulong hours = (duration_seconds / 3600ul) % hours_in_day;
-					return BuildString(days.ToString(), "d ", hours.ToString(), "h");
+					return BuildString(days.ToString(), Local.Generic_Days, " ", hours.ToString(), Local.Generic_Hours);
 				}
 				// years + days
 				ulong years = duration_seconds / (3600ul * hours_in_day * days_in_year);
-				return BuildString(years.ToString(), "y ", days.ToString(), "d");
+				return BuildString(years.ToString(), Local.Generic_Years, " ", days.ToString(), Local.Generic_Days);
 			}
 			else
 			{
@@ -1087,8 +1087,8 @@ namespace KERBALISM
 				long years = duration / (long)days_in_year;
 
 				string result = string.Empty;
-				if (years > 0) result += years + "y ";
-				if (years > 0 || days > 0) result += days + "d ";
+				if (years > 0) result += years + Local.Generic_Years + " ";
+				if (years > 0 || days > 0) result += days + Local.Generic_Days + " ";
 				if (years > 0 || days > 0 || hours > 0) result += hours.ToString("D2") + ":";
 				if (years > 0 || days > 0 || hours > 0 || minutes > 0) result += minutes.ToString("D2") + ":";
 				result += seconds.ToString("D2");
@@ -2612,7 +2612,7 @@ namespace KERBALISM
 		/// <summary> Adds the specified resource amount and capacity to a part,
 		/// the resource is created if it doesn't already exist </summary>
 		///<summary>poached from https://github.com/blowfishpro/B9PartSwitch/blob/master/B9PartSwitch/Extensions/PartExtensions.cs
-		public static PartResource AddResource(Part p, string res_name, double amount, double capacity)
+		public static PartResource AddResource(Part p, string res_name, double amount, double capacity, bool addToExisting = false)
 		{
 			var reslib = PartResourceLibrary.Instance.resourceDefinitions;
 			// if the resource is not known, log a warning and do nothing
@@ -2652,12 +2652,21 @@ namespace KERBALISM
 			}
 			else
 			{
-				resource.maxAmount = capacity;
-
 				PartResource simulationResource = p.SimulationResources?[resourceDefinition.name];
-				if (simulationResource != null) simulationResource.maxAmount = capacity;
 
-				resource.amount = amount;
+				if (addToExisting)
+				{
+					resource.maxAmount += capacity;
+					resource.amount = Math.Min(resource.amount + amount, resource.maxAmount);
+				}
+				else
+				{
+					resource.maxAmount = capacity;
+					resource.amount = amount;
+				}
+
+				if (simulationResource != null)
+					simulationResource.maxAmount = resource.maxAmount;
 			}
 
 			return resource;
@@ -2673,12 +2682,8 @@ namespace KERBALISM
 			if (resource == null || resource.info == null)
 				return;
 
-			// reduce amount and capacity
-			resource.amount -= amount;
+			// reduce capacity
 			resource.maxAmount -= capacity;
-
-			// clamp amount to capacity just in case
-			resource.amount = Math.Min(resource.amount, resource.maxAmount);
 
 			// if the resource is empty
 			if (resource.maxAmount <= 0.005) //< deal with precision issues
@@ -2687,6 +2692,17 @@ namespace KERBALISM
 				p.SimulationResources?.dict.Remove(resource.info.id);
 
 				GameEvents.onPartResourceListChange.Fire(p);
+				return;
+			}
+
+			// reduce amount and clamp it to the remaining capacity
+			resource.amount = Math.Max(0.0, Math.Min(resource.amount - amount, resource.maxAmount));
+
+			PartResource simulationResource = p.SimulationResources?[res_name];
+			if (simulationResource != null)
+			{
+				simulationResource.maxAmount = resource.maxAmount;
+				simulationResource.amount = Math.Max(0.0, Math.Min(simulationResource.amount, simulationResource.maxAmount));
 			}
 		}
 
