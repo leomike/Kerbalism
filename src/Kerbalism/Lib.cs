@@ -2612,7 +2612,7 @@ namespace KERBALISM
 		/// <summary> Adds the specified resource amount and capacity to a part,
 		/// the resource is created if it doesn't already exist </summary>
 		///<summary>poached from https://github.com/blowfishpro/B9PartSwitch/blob/master/B9PartSwitch/Extensions/PartExtensions.cs
-		public static PartResource AddResource(Part p, string res_name, double amount, double capacity)
+		public static PartResource AddResource(Part p, string res_name, double amount, double capacity, bool addToExisting = false)
 		{
 			var reslib = PartResourceLibrary.Instance.resourceDefinitions;
 			// if the resource is not known, log a warning and do nothing
@@ -2652,12 +2652,21 @@ namespace KERBALISM
 			}
 			else
 			{
-				resource.maxAmount = capacity;
-
 				PartResource simulationResource = p.SimulationResources?[resourceDefinition.name];
-				if (simulationResource != null) simulationResource.maxAmount = capacity;
 
-				resource.amount = amount;
+				if (addToExisting)
+				{
+					resource.maxAmount += capacity;
+					resource.amount = Math.Min(resource.amount + amount, resource.maxAmount);
+				}
+				else
+				{
+					resource.maxAmount = capacity;
+					resource.amount = amount;
+				}
+
+				if (simulationResource != null)
+					simulationResource.maxAmount = resource.maxAmount;
 			}
 
 			return resource;
@@ -2673,12 +2682,8 @@ namespace KERBALISM
 			if (resource == null || resource.info == null)
 				return;
 
-			// reduce amount and capacity
-			resource.amount -= amount;
+			// reduce capacity
 			resource.maxAmount -= capacity;
-
-			// clamp amount to capacity just in case
-			resource.amount = Math.Min(resource.amount, resource.maxAmount);
 
 			// if the resource is empty
 			if (resource.maxAmount <= 0.005) //< deal with precision issues
@@ -2687,6 +2692,17 @@ namespace KERBALISM
 				p.SimulationResources?.dict.Remove(resource.info.id);
 
 				GameEvents.onPartResourceListChange.Fire(p);
+				return;
+			}
+
+			// reduce amount and clamp it to the remaining capacity
+			resource.amount = Math.Max(0.0, Math.Min(resource.amount - amount, resource.maxAmount));
+
+			PartResource simulationResource = p.SimulationResources?[res_name];
+			if (simulationResource != null)
+			{
+				simulationResource.maxAmount = resource.maxAmount;
+				simulationResource.amount = Math.Max(0.0, Math.Min(simulationResource.amount, simulationResource.maxAmount));
 			}
 		}
 

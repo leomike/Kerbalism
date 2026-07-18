@@ -270,7 +270,7 @@ namespace KERBALISM
 
 							// remove the resources
 							prev_count = prev_count == 0 ? 1 : prev_count;
-							Lib.RemoveResource(part, cr.name, amount * prev_count, capacity * prev_count);
+							Lib.RemoveResource(part, cr.name, 0.0, capacity * prev_count);
 						}
 
 						// if selected
@@ -281,7 +281,7 @@ namespace KERBALISM
 
 							// add the resources
 							// - in flight, do not add amount
-							Lib.AddResource(part, cr.name, Lib.IsFlight() ? 0.0 : amount * count, capacity * count);
+							Lib.AddResource(part, cr.name, Lib.IsFlight() ? 0.0 : amount * count, capacity * count, true);
 						}
 					}
 
